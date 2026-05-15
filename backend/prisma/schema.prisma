@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Rol {
+  DIRECTOR
+  PROFESOR
+  ADMINISTRATIVO
+  ESTUDIANTE
+}
+
+enum EstadoAsistencia {
+  PRESENTE
+  AUSENTE
+  JUSTIFICADO
+}
+
+enum NivelRiesgo {
+  SIN_RIESGO
+  RIESGO_MEDIO
+  RIESGO_ALTO
+}
+
+enum TipoNotificacion {
+  RIESGO_ALTO
+  EXCESO_FALTAS
+}
+
+// ─────────────────────────────────────────────
+// TABLA 1: Usuario
+// ─────────────────────────────────────────────
+model Usuario {
+  id            String   @id @default(uuid())
+  nombre        String
+  email         String   @unique
+  password      String
+  rol           Rol
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  estudiante Estudiante?
+  docente    Docente?
+
+  @@map("usuarios")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 2: Estudiante
+// ─────────────────────────────────────────────
+model Estudiante {
+  id         String  @id @default(uuid())
+  usuarioId  String  @unique
+  usuario    Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cursoId    String
+  curso      Curso   @relation(fields: [cursoId], references: [id])
+  gestion    Int
+  emailTutor String
+
+  notas          Nota[]
+  asistencias    Asistencia[]
+  predicciones   PrediccionRiesgo[]
+  notificaciones Notificacion[]
+
+  @@map("estudiantes")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 3: Docente
+// ─────────────────────────────────────────────
+model Docente {
+  id           String  @id @default(uuid())
+  usuarioId    String  @unique
+  usuario      Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  especialidad String
+
+  materias MateriaProgramada[]
+
+  @@map("docentes")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 4: Curso
+// ─────────────────────────────────────────────
+model Curso {
+  id       String @id @default(uuid())
+  nivel    Int
+  paralelo String
+
+  estudiantes Estudiante[]
+  horarios    MateriaProgramada[]
+
+  @@unique([nivel, paralelo])
+  @@map("cursos")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 5: Materia
+// ─────────────────────────────────────────────
+model Materia {
+  id           String @id @default(uuid())
+  nombre       String
+  cargaHoraria Int
+  nivel        Int
+
+  programaciones MateriaProgramada[]
+
+  @@map("materias")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 6: MateriaProgramada
+// ─────────────────────────────────────────────
+model MateriaProgramada {
+  id        String  @id @default(uuid())
+  materiaId String
+  materia   Materia @relation(fields: [materiaId], references: [id])
+  docenteId String
+  docente   Docente @relation(fields: [docenteId], references: [id])
+  cursoId   String
+  curso     Curso   @relation(fields: [cursoId], references: [id])
+  horario   String
+  gestion   Int
+
+  notas       Nota[]
+  asistencias Asistencia[]
+
+  @@map("materias_programadas")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 7: Nota
+// ─────────────────────────────────────────────
+model Nota {
+  id                  String            @id @default(uuid())
+  estudianteId        String
+  estudiante          Estudiante        @relation(fields: [estudianteId], references: [id])
+  materiaProgramadaId String
+  materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
+  trimestre           Int
+  ser                 Float
+  saber               Float
+  hacer               Float
+  total               Float
+  aprobado            Boolean
+  creadoEn            DateTime @default(now())
+  actualizadoEn       DateTime @updatedAt
+
+  @@unique([estudianteId, materiaProgramadaId, trimestre])
+  @@map("notas")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 8: Asistencia
+// ─────────────────────────────────────────────
+model Asistencia {
+  id                  String            @id @default(uuid())
+  estudianteId        String
+  estudiante          Estudiante        @relation(fields: [estudianteId], references: [id])
+  materiaProgramadaId String
+  materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
+  fecha               DateTime
+  estado              EstadoAsistencia
+  creadoEn            DateTime @default(now())
+
+  @@unique([estudianteId, materiaProgramadaId, fecha])
+  @@map("asistencias")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 9a: PrediccionRiesgo
+// ─────────────────────────────────────────────
+model PrediccionRiesgo {
+  id                   String      @id @default(uuid())
+  estudianteId         String
+  estudiante           Estudiante  @relation(fields: [estudianteId], references: [id])
+  nivelRiesgo          NivelRiesgo
+  probabilidad         Float
+  promedioNotas        Float
+  porcentajeAsistencia Float
+  trimestre            Int
+  generadoEn           DateTime @default(now())
+
+  @@map("predicciones_riesgo")
+}
+
+// ─────────────────────────────────────────────
+// TABLA 9b: Notificacion
+// ─────────────────────────────────────────────
+model Notificacion {
+  id           String           @id @default(uuid())
+  estudianteId String
+  estudiante   Estudiante       @relation(fields: [estudianteId], references: [id])
+  tipo         TipoNotificacion
+  emailDestino String
+  estadoEnvio  String
+  mensaje      String?
+  enviadoEn    DateTime @default(now())
+
+  @@map("notificaciones")
+}
+
+// ─────────────────────────────────────────────
+// TABLA EXTRA: Configuracion
+// ─────────────────────────────────────────────
+model Configuracion {
+  id               String   @id @default(uuid())
+  limiteFaltas     Int      @default(25)
+  umbralAprobacion Int      @default(51)
+  trimestreActivo  Int      @default(1)
+  gestionActual    Int      @default(2026)
+  actualizadoEn    DateTime @updatedAt
+
+  @@map("configuracion")
+}

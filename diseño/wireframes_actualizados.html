@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wireframes — Sistema Académico U.E. La Paz "A"</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+  
+  .page-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: #1e3a5f; color: white; padding: 10px 20px;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .page-nav span { font-weight: 700; margin-right: 8px; font-size: 13px; }
+  .page-nav a {
+    background: rgba(255,255,255,0.15); color: white; text-decoration: none;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; transition: background 0.2s;
+  }
+  .page-nav a:hover { background: rgba(255,255,255,0.3); }
+
+  .wireframe-page {
+    margin: 60px auto 40px; max-width: 900px; padding: 0 20px;
+    scroll-margin-top: 70px;
+  }
+  .page-label {
+    font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase;
+    letter-spacing: 2px; margin-bottom: 8px; padding-left: 4px;
+  }
+  .frame {
+    background: white; border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;
+  }
+
+  /* ── LOGIN ── */
+  .login-frame { display: flex; min-height: 380px; }
+  .login-left {
+    flex: 1; padding: 40px 36px;
+    background: white;
+  }
+  .login-right {
+    width: 320px; background: linear-gradient(135deg, #4a90e2 0%, #1e3a8a 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-right svg { opacity: 0.9; }
+  .brand { font-size: 11px; font-weight: 700; color: #4a90e2; letter-spacing: 2px; margin-bottom: 20px; }
+  .login-title { font-size: 26px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .login-sub { font-size: 12px; color: #888; margin-bottom: 22px; }
+  .role-label { font-size: 10px; font-weight: 700; color: #666; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
+  .role-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid #ddd; color: #555; cursor: pointer; display: flex; align-items: center; gap: 5px;
+  }
+  .pill.active { background: #4a90e2; color: white; border-color: #4a90e2; }
+  .field-label { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .field { width: 100%; border: none; border-bottom: 1.5px solid #ddd; padding: 8px 0; font-size: 13px; color: #aaa; margin-bottom: 16px; outline: none; }
+  .btn-login {
+    background: #4a90e2; color: white; border: none; padding: 12px 28px;
+    border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 1px;
+  }
+
+  /* ── DASHBOARD LAYOUT ── */
+  .dash { display: flex; min-height: 480px; }
+  .sidebar { width: 200px; flex-shrink: 0; padding: 16px 0; }
+  .sidebar.blue { background: #1e3a5f; }
+  .sidebar.red { background: #8B0000; }
+  .sidebar.green { background: #1a4731; }
+  .sidebar.brown { background: #4a2c0a; }
+  .user-info { padding: 14px 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px; }
+  .user-avatar {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 13px; color: white; margin-bottom: 8px;
+  }
+  .av-blue { background: #f59e0b; }
+  .av-red { background: #f59e0b; }
+  .av-green { background: #16a34a; }
+  .av-brown { background: #d97706; }
+  .user-name { font-size: 12px; font-weight: 700; color: white; }
+  .user-role { font-size: 10px; color: rgba(255,255,255,0.6); }
+  .date-info { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .nav-section { padding: 0 10px; margin-bottom: 4px; }
+  .nav-section-title { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 6px 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+    border-radius: 6px; font-size: 11px; color: rgba(255,255,255,0.75); cursor: pointer; margin-bottom: 1px;
+  }
+  .nav-item.active { background: rgba(255,255,255,0.15); color: white; font-weight: 600; }
+  .nav-item:hover { background: rgba(255,255,255,0.08); }
+  .nav-dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  .nd-blue { background: #60a5fa; }
+  .nd-green { background: #34d399; }
+  .nd-yellow { background: #fbbf24; }
+  .nd-red { background: #f87171; }
+  .nd-purple { background: #a78bfa; }
+  .nd-orange { background: #fb923c; }
+  .nd-teal { background: #2dd4bf; }
+  .nd-pink { background: #f472b6; }
+  .nd-gray { background: #9ca3af; }
+  .logout { margin: 8px 10px 0; padding: 7px 8px; border-radius: 6px; font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; display: flex; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: 12px; }
+  
+  /* ── MAIN CONTENT ── */
+  .main { flex: 1; padding: 24px; background: #f8fafc; overflow: auto; }
+  .main-title { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .main-sub { font-size: 11px; color: #888; margin-bottom: 18px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .kpi { background: white; border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .kpi-label { font-size: 10px; color: #888; margin-bottom: 4px; }
+  .kpi-val { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  .kpi-tag { font-size: 10px; padding: 2px 6px; border-radius: 10px; display: inline-block; margin-top: 4px; }
+  .tag-green { background: #d1fae5; color: #065f46; }
+  .tag-red { background: #fee2e2; color: #991b1b; }
+  .tag-yellow { background: #fef3c7; color: #92400e; }
+  .tag-blue { background: #dbeafe; color: #1e40af; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .card-title { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .bar-label { font-size: 11px; color: #555; width: 40px; }
+  .bar-track { flex: 1; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-pct { font-size: 11px; color: #555; width: 30px; text-align: right; }
+  .risk-chip { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .chip-red { background: #fee2e2; color: #b91c1c; }
+  .chip-yellow { background: #fef3c7; color: #92400e; }
+  .chip-green { background: #d1fae5; color: #065f46; }
+  .risk-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 11px; }
+  .risk-name { font-weight: 600; color: #1a1a2e; }
+  .risk-info { color: #888; }
+
+  /* Notas table */
+  .notas-header { background: #8B0000; color: white; padding: 14px 20px; }
+  .notas-header-title { font-size: 13px; font-weight: 700; }
+  .notas-header-sub { font-size: 10px; opacity: 0.8; }
+  .notas-controls { padding: 14px; display: flex; gap: 10px; align-items: center; }
+  .select-box { border: 1.5px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #555; flex: 1; }
+  .btn-sm { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; border: 1.5px solid #e5e7eb; background: white; color: #555; cursor: pointer; }
+  .btn-primary { background: #4a90e2; color: white; border-color: #4a90e2; }
+  .table { width: 100%; border-collapse: collapse; }
+  .table th { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; text-align: left; }
+  .table td { padding: 10px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #f3f4f6; }
+  .input-mini { width: 52px; border: 1.5px solid #e5e7eb; border-radius: 4px; padding: 4px 6px; font-size: 12px; text-align: center; }
+
+  /* Asistencia */
+  .pac-btn { display: inline-flex; }
+  .pac-btn span {
+    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid #e5e7eb; font-size: 11px; font-weight: 700; cursor: pointer; color: #555;
+  }
+  .pac-btn span:first-child { border-radius: 4px 0 0 4px; }
+  .pac-btn span:last-child { border-radius: 0 4px 4px 0; }
+  .pac-btn span.p-active { background: #d1fae5; color: #065f46; border-color: #34d399; }
+  .pac-btn span.a-active { background: #fee2e2; color: #b91c1c; border-color: #f87171; }
+  .pac-btn span.j-active { background: #fef3c7; color: #92400e; border-color: #fbbf24; }
+  .mini-bar { height: 4px; border-radius: 2px; margin-top: 3px; }
+
+  /* Predicción IA */
+  .ia-header { background: #3d2100; color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .ia-badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
+  .algo-card { border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .algo-name { font-size: 12px; font-weight: 700; }
+  .algo-sub { font-size: 10px; color: #888; }
+  .algo-metrics { display: flex; gap: 8px; }
+  .metric-pill { background: #f3f4f6; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+  .metric-pill.selected { background: #dbeafe; color: #1e40af; }
+  .var-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; }
+  .var-bar { flex: 1; height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .var-fill { height: 100%; background: #92400e; border-radius: 3px; }
+
+  /* Administrativo */
+  .admin-tag { background: rgba(255,255,255,0.15); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-top: 2px; }
+  .status-pill { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .sp-green { background: #d1fae5; color: #065f46; }
+  .sp-yellow { background: #fef3c7; color: #92400e; }
+  .sp-red { background: #fee2e2; color: #b91c1c; }
+  .course-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+  .task-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 11px; }
+  .task-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+  .activity-item { display: flex; gap: 8px; padding: 6px 0; font-size: 11px; color: #555; border-bottom: 1px solid #f3f4f6; }
+
+  /* Notificaciones */
+  .notif-card { border-left: 3px solid; padding: 10px 12px; border-radius: 0 6px 6px 0; background: #fff; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .notif-card.alto { border-color: #ef4444; background: #fff5f5; }
+  .notif-card.medio { border-color: #f59e0b; background: #fffbeb; }
+  .notif-title { font-size: 12px; font-weight: 700; color: #1a1a2e; display: flex; justify-content: space-between; }
+  .notif-body { font-size: 11px; color: #555; margin: 4px 0; }
+  .notif-footer { display: flex; gap: 6px; align-items: center; font-size: 10px; }
+  .config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+  .config-label { font-size: 12px; font-weight: 600; }
+  .config-sub { font-size: 10px; color: #888; }
+  .toggle { width: 36px; height: 18px; background: #e5e7eb; border-radius: 9px; position: relative; cursor: pointer; }
+  .toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: white; border-radius: 50%; top: 2px; left: 2px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+  /* Horario */
+  .horario-grid { display: grid; grid-template-columns: 60px repeat(5, 1fr); gap: 2px; font-size: 10px; }
+  .hg-header { background: #1e3a5f; color: white; padding: 6px; text-align: center; font-weight: 700; border-radius: 4px; }
+  .hg-time { background: #f3f4f6; padding: 6px; text-align: right; color: #888; font-weight: 600; display: flex; align-items: center; justify-content: flex-end; }
+  .hg-cell { background: white; padding: 6px; border-radius: 4px; min-height: 50px; border: 1px solid #f0f0f0; }
+  .hg-cell.mat { background: #fce7f3; }
+  .hg-cell.len { background: #e0e7ff; }
+  .hg-cell.fis { background: #d1fae5; }
+  .hg-cell.his { background: #fef3c7; }
+  .hg-cell.ing { background: #e0f2fe; }
+  .hg-cell.cn { background: #dcfce7; }
+  .hg-cell.libre { background: #f9fafb; color: #bbb; font-style: italic; display: flex; align-items: center; justify-content: center; }
+  .hg-cell.receso { grid-column: 1 / -1; background: #f3f4f6; text-align: center; color: #888; padding: 4px; font-style: italic; }
+  .cell-materia { font-weight: 700; font-size: 9px; }
+  .cell-prof { font-size: 9px; color: #666; }
+  .cell-aula { font-size: 9px; color: #888; }
+
+  /* Estudiante */
+  .est-notas-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+  .prediccion-box { border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .pred-alto { background: #fff0f0; border: 1px solid #fca5a5; }
+  .pred-medio { background: #fffbeb; border: 1px solid #fcd34d; }
+  .pred-title { font-size: 12px; font-weight: 700; }
+  .pred-detail { font-size: 11px; color: #555; margin-top: 2px; }
+
+  .section-divider { text-align: center; padding: 30px 0 10px; }
+  .section-divider span { background: #1e3a5f; color: white; padding: 6px 20px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<nav class="page-nav">
+  <span>📐 Wireframes Sistema Académico</span>
+  <a href="#login">Login</a>
+  <a href="#director">Director</a>
+  <a href="#profesor">Profesor</a>
+  <a href="#notas">Notas</a>
+  <a href="#asistencia">Asistencia</a>
+  <a href="#ia">Predicción IA</a>
+  <a href="#admin">Administrativo</a>
+  <a href="#notificaciones">Notificaciones</a>
+  <a href="#horario">Horario</a>
+  <a href="#estudiante">Estudiante</a>
+</nav>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div class="wireframe-page" id="login">
+  <div class="page-label">Pantalla 1 — Login</div>
+  <div class="frame login-frame">
+    <div class="login-left">
+      <div class="brand">U.E. LA PAZ "A"</div>
+      <div class="login-title">Login</div>
+      <div class="login-sub">Bienvenido al sistema de gestión académica integral.</div>
+      <div class="role-label">Selecciona tu rol</div>
+      <div class="role-pills">
+        <div class="pill">👤 Director</div>
+        <div class="pill active">📋 Docente</div>
+        <div class="pill">🗂️ Admin</div>
+        <div class="pill">🎓 Estudiante</div>
+      </div>
+      <div class="field-label">Email</div>
+      <input class="field" type="text" placeholder="usuario@lapaz.edu.bo" readonly>
+      <div class="field-label">Contraseña</div>
+      <input class="field" type="password" placeholder="Ingresa tu contraseña" readonly>
+      <button class="btn-login">LOGIN</button>
+    </div>
+    <div class="login-right">
+      <svg width="180" height="180" viewBox="0 0 180 180" fill="none">
+        <rect x="30" y="30" width="120" height="90" rx="8" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+        <circle cx="52" cy="52" r="10" fill="rgba(255,255,255,0.4)"/>
+        <circle cx="52" cy="78" r="10" fill="rgba(255,255,255,0.3)"/>
+        <circle cx="52" cy="104" r="10" fill="rgba(255,255,255,0.2)"/>
+        <rect x="70" y="47" width="60" height="8" rx="4" fill="rgba(255,255,255,0.4)"/>
+        <rect x="70" y="73" width="45" height="8" rx="4" fill="rgba(255,255,255,0.3)"/>
+        <rect x="70" y="99" width="52" height="8" rx="4" fill="rgba(255,255,255,0.2)"/>
+        <circle cx="130" cy="40" r="20" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+        <circle cx="130" cy="40" r="12" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-dasharray="6 4"/>
+        <rect x="20" y="135" width="140" height="18" rx="9" fill="rgba(255,255,255,0.15)"/>
+        <rect x="20" y="158" width="90" height="12" rx="6" fill="rgba(255,255,255,0.1)"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ DIRECTOR ══════════════ -->
+<div class="wireframe-page" id="director">
+  <div class="page-label">Pantalla 2 — Dashboard Director</div>
+  <div class="frame dash">
+    <div class="sidebar blue">
+      <div class="user-info">
+        <div class="user-avatar av-blue">DR</div>
+        <div class="user-name">Lic. Daniel Ríos</div>
+        <div class="user-role">Director — U.E. La Paz "A"</div>
+        <div class="date-info">Gestión 2026 | Lunes 22 de marzo</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">General</div>
+        <div class="nav-item active"><div class="nav-dot nd-blue"></div> Dashboard</div>
+        <div class="nav-item"><div class="nav-dot nd-yellow"></div> Horarios</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Académico</div>
+        <div class="nav-item"><div class="nav-dot nd-green"></div> Asistencia</div>
+        <div class="nav-item"><div class="nav-dot nd-orange"></div> Notas</div>
+        <div class="nav-item"><div class="nav-dot nd-purple"></div> Predicción IA</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Admin</div>
+        <div class="nav-item"><div class="nav-dot nd-teal"></div> Usuarios</div>
+        <div class="nav-item"><div class="nav-dot nd-gray"></div> Reportes</div>
+      </div>
+      <div class="logout">⏻ Cerrar sesión</div>
+    </div>
+    <div class="main">
+      <div class="main-title">Panel general — Director</div>
+      <div class="main-sub">Gestión escolar 2026 · Trimestre 1</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Total estudiantes</div><div class="kpi-val">487</div><div class="kpi-tag tag-blue">6 cursos</div></div>
+        <div class="kpi"><div class="kpi-label">Tasa aprobación</div><div class="kpi-val">78%</div><div class="kpi-tag tag-green">+3% vs 2025</div></div>
+        <div class="kpi"><div class="kpi-label">En riesgo alto</div><div class="kpi-val">34</div><div class="kpi-tag tag-red">7% del total</div></div>
+        <div class="kpi"><div class="kpi-label">Asistencia media</div><div class="kpi-val">91%</div><div class="kpi-tag tag-yellow">Trimestre 1</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Aprobación por curso — T1</div>
+          <div class="bar-row"><div class="bar-label">1ro A</div><div class="bar-track"><div class="bar-fill" style="width:85%;background:#4a90e2"></div></div><div class="bar-pct">85%</div></div>
+          <div class="bar-row"><div class="bar-label">2do A</div><div class="bar-track"><div class="bar-fill" style="width:79%;background:#4a90e2"></div></div><div class="bar-pct">79%</div></div>
+          <div class="bar-row"><div class="bar-label">3ro A</div><div class="bar-track"><div class="bar-fill" style="width:72%;background:#ef4444"></div></div><div class="bar-pct">72%</div></div>
+          <div class="bar-row"><div class="bar-label">4to A</div><div class="bar-track"><div class="bar-fill" style="width:81%;background:#4a90e2"></div></div><div class="bar-pct">81%</div></div>
+          <div class="bar-row"><div class="bar-label">5to A</div><div class="bar-track"><div class="bar-fill" style="width:76%;background:#f59e0b"></div></div><div class="bar-pct">76%</div></div>
+          <div class="bar-row"><div class="bar-label">6to A</div><div class="bar-track"><div class="bar-fill" style="width:83%;background:#4a90e2"></div></div><div class="bar-pct">83%</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Estudiantes en riesgo alto</div>
+          <div class="risk-row"><div><div class="risk-name">Juan Mamani</div><div class="risk-info">3ro A · Matemáticas</div></div><span class="risk-chip chip-red">Alto</span></div>
+          <div class="risk-row"><div><div class="risk-name">María Quispe</div><div class="risk-info">3ro A · Física</div></div><span class="risk-chip chip-red">Alto</span></div>
+          <div class="risk-row"><div><div class="risk-name">Carlos Flores</div><div class="risk-info">5to A · Química</div></div><span class="risk-chip chip-yellow">Medio</span></div>
+          <div class="risk-row"><div><div class="risk-name">Ana Condori</div><div class="risk-info">2do A · Lenguaje</div></div><span class="risk-chip chip-yellow">Medio</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PROFESOR ══════════════ -->
+<div class="wireframe-page" id="profesor">
+  <div class="page-label">Pantalla 3 — Dashboard Profesor</div>
+  <div class="frame dash">
+    <div class="sidebar red">
+      <div class="user-info">
+        <div class="user-avatar av-red">LR</div>
+        <div class="user-name">Prof. Laura Rojas</div>
+        <div class="user-role">Profesora — Matemáticas · Física</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Mi Panel</div>
+        <div class="nav-item active"><div class="nav-dot nd-blue"></div> Dashboard</div>
+        <div class="nav-item"><div class="nav-dot nd-orange"></div> Registrar notas</div>
+        <div class="nav-item"><div class="nav-dot nd-green"></div> Asistencia</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Consultas</div>
+        <div class="nav-item"><div class="nav-dot nd-purple"></div> Predicción IA</div>
+        <div class="nav-item"><div class="nav-dot nd-yellow"></div> Mi horario</div>
+        <div class="nav-item"><div class="nav-dot nd-gray"></div> Reportes</div>
+      </div>
+      <div class="logout">⏻ Cerrar sesión</div>
+    </div>
+    <div class="main">
+      <div class="main-title">Mi panel — Prof. Rojas</div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi"><div class="kpi-label">Mis estudiantes</div><div class="kpi-val">162</div><div class="kpi-tag tag-blue">3 cursos</div></div>
+        <div class="kpi"><div class="kpi-label">Notas pendientes</div><div class="kpi-val">18</div><div class="kpi-tag tag-red">Por registrar</div></div>
+        <div class="kpi"><div class="kpi-label">En riesgo (mis cursos)</div><div class="kpi-val">11</div><div class="kpi-tag tag-red">Detectados por IA</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Mis cursos — avance notas T1</div>
+          <div class="risk-row"><div><div class="risk-name">3ro A — Matemáticas</div><div class="risk-info">42 estudiantes · 18 sin nota</div></div><span style="color:#ef4444;font-weight:700;font-size:12px">57%</span></div>
+          <div class="bar-track" style="height:5px;margin:4px 0 10px"><div class="bar-fill" style="width:57%;background:#ef4444"></div></div>
+          <div class="risk-row"><div><div class="risk-name">4to A — Matemáticas</div><div class="risk-info">40 estudiantes · 0 sin nota</div></div><span style="color:#16a34a;font-weight:700;font-size:12px">100%</span></div>
+          <div class="bar-track" style="height:5px;margin:4px 0 10px"><div class="bar-fill" style="width:100%;background:#16a34a"></div></div>
+          <div class="risk-row"><div><div class="risk-name">5to A — Física</div><div class="risk-info">38 estudiantes · 0 sin nota</div></div><span style="color:#16a34a;font-weight:700;font-size:12px">100%</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Mi horario hoy — lunes</div>
+          <div class="risk-row"><div class="risk-info">08:00</div><div><span class="risk-chip" style="background:#fce7f3;color:#9d174d">Mat.</span></div><div><div class="risk-name">Matemáticas</div><div class="risk-info">3ro A</div></div></div>
+          <div class="risk-row"><div class="risk-info">09:45</div><div><span class="risk-chip" style="background:#fce7f3;color:#9d174d">Mat.</span></div><div><div class="risk-name">Matemáticas</div><div class="risk-info">4to A</div></div></div>
+          <div class="risk-row"><div class="risk-info">11:30</div><div><span class="risk-chip" style="background:#d1fae5;color:#065f46">Fís.</span></div><div><div class="risk-name">Física</div><div class="risk-info">5to A</div></div></div>
+          <div class="risk-row"><div class="risk-info">14:00</div><div><span class="risk-chip" style="background:#f3f4f6;color:#555">Lib.</span></div><div><div class="risk-name">Hora libre</div><div class="risk-info">Planificación</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ NOTAS ══════════════ -->
+<div class="wireframe-page" id="notas">
+  <div class="page-label">Pantalla 4 — Registro de Notas (Profesor)</div>
+  <div class="frame">
+    <div class="notas-header">
+      <div class="notas-header-title">Registro de notas — Trimestre 1</div>
+      <div class="notas-header-sub">Prof. Laura Rojas · 3ro A · Matemáticas &nbsp;|&nbsp; 51 puntos máx. por trimestre</div>
+    </div>
+    <div class="notas-controls">
+      <select class="select-box"><option>3ro A — Matemáticas</option></select>
+      <select class="select-box" style="max-width:150px"><option>Trimestre 1</option></select>
+      <button class="btn-sm btn-primary">Guardar notas</button>
+      <button class="btn-sm">Exportar PDF</button>
+    </div>
+    <table class="table">
+      <thead><tr><th>Estudiante</th><th>Ser (15)</th><th>Saber (35)</th><th>Hacer (0)</th><th>Promedio</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Mamani, Juan C.</td><td><input class="input-mini" value="10"></td><td><input class="input-mini" value="28"></td><td><input class="input-mini" value="10"></td><td><span class="risk-chip chip-red">48</span></td><td><span class="risk-chip chip-red">Riesgo</span></td></tr>
+        <tr><td>Quispe, María E.</td><td><input class="input-mini" value="13"></td><td><input class="input-mini" value="30"></td><td><input class="input-mini" value="0"></td><td><span class="risk-chip chip-green">71</span></td><td><span class="risk-chip chip-green">Aprobado</span></td></tr>
+        <tr><td>Flores, Carlos A.</td><td><input class="input-mini" value="11"></td><td><input class="input-mini" value="26"></td><td><input class="input-mini" value="0"></td><td><span class="risk-chip chip-yellow">55</span></td><td><span class="risk-chip chip-yellow">Atención</span></td></tr>
+        <tr><td>Condori, Ana P.</td><td><input class="input-mini" value="14"></td><td><input class="input-mini" value="32"></td><td><input class="input-mini" value="0"></td><td><span class="risk-chip chip-green">82</span></td><td><span class="risk-chip chip-green">Aprobado</span></td></tr>
+        <tr><td>Vargas, Luis M.</td><td><input class="input-mini" value="9"></td><td><input class="input-mini" value="20"></td><td><input class="input-mini" value="0"></td><td><span class="risk-chip chip-red">44</span></td><td><span class="risk-chip chip-red">Riesgo</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ ASISTENCIA ══════════════ -->
+<div class="wireframe-page" id="asistencia">
+  <div class="page-label">Pantalla 5 — Registro de Asistencia (Profesor)</div>
+  <div class="frame">
+    <div class="notas-header" style="background:#1e3a5f">
+      <div class="notas-header-title">Registro de asistencia — Lunes 22 de marzo, 2026</div>
+      <div class="notas-header-sub">Prof. Laura Rojas · 3ro A · Matemáticas · 08:00</div>
+    </div>
+    <div class="notas-controls">
+      <select class="select-box"><option>3ro A — Matemáticas</option></select>
+      <select class="select-box" style="max-width:140px"><option>Lunes 22/03</option></select>
+      <button class="btn-sm btn-primary">Guardar asistencia</button>
+      <button class="btn-sm">Marcar todos presente</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 14px 14px">
+      <div class="kpi" style="text-align:center"><div class="kpi-val" style="color:#16a34a">4</div><div class="kpi-label">Presentes</div></div>
+      <div class="kpi" style="text-align:center"><div class="kpi-val" style="color:#ef4444">1</div><div class="kpi-label">Ausentes</div></div>
+      <div class="kpi" style="text-align:center"><div class="kpi-val" style="color:#f59e0b">1</div><div class="kpi-label">Justificados</div></div>
+      <div class="kpi" style="text-align:center"><div class="kpi-val" style="color:#9ca3af">0</div><div class="kpi-label">Sin marcar</div></div>
+    </div>
+    <table class="table">
+      <thead><tr><th>Estudiante</th><th>Estado</th><th>Justificación</th><th>Asistencia %</th><th>Faltas</th></tr></thead>
+      <tbody>
+        <tr><td>Mamani, Juan C.</td><td><div class="pac-btn"><span class="p-active">P</span><span>A</span><span>J</span></div></td><td style="color:#aaa;font-size:11px">Motivo...</td><td><div style="font-size:11px;font-weight:700">84%</div><div class="mini-bar" style="background:#ef4444;width:84%"></div></td><td>5</td></tr>
+        <tr><td>Quispe, María E.</td><td><div class="pac-btn"><span class="p-active">P</span><span>A</span><span>J</span></div></td><td style="color:#aaa;font-size:11px">Motivo...</td><td><div style="font-size:11px;font-weight:700">92%</div><div class="mini-bar" style="background:#16a34a;width:92%"></div></td><td>2</td></tr>
+        <tr><td>Flores, Carlos A.</td><td><div class="pac-btn"><span>P</span><span class="a-active">A</span><span>J</span></div></td><td style="color:#aaa;font-size:11px">Motivo...</td><td><div style="font-size:11px;font-weight:700">88%</div><div class="mini-bar" style="background:#16a34a;width:88%"></div></td><td>3</td></tr>
+        <tr><td>Condori, Ana P.</td><td><div class="pac-btn"><span class="p-active">P</span><span>A</span><span>J</span></div></td><td style="color:#aaa;font-size:11px">Motivo...</td><td><div style="font-size:11px;font-weight:700">97%</div><div class="mini-bar" style="background:#16a34a;width:97%"></div></td><td>1</td></tr>
+        <tr><td>Vargas, Luis M.</td><td><div class="pac-btn"><span>P</span><span>A</span><span class="j-active">J</span></div></td><td style="color:#aaa;font-size:11px">Motivo...</td><td><div style="font-size:11px;font-weight:700">79%</div><div class="mini-bar" style="background:#ef4444;width:79%"></div></td><td>6</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ PREDICCIÓN IA ══════════════ -->
+<div class="wireframe-page" id="ia">
+  <div class="page-label">Pantalla 6 — Predicción IA</div>
+  <div class="frame">
+    <div class="ia-header">
+      <div>
+        <div style="font-size:13px;font-weight:700">Predicción de rendimiento — Inteligencia Artificial</div>
+        <div style="font-size:10px;opacity:0.7">Modelo actualizado con datos Trimestre 1 · 3ro A</div>
+      </div>
+      <div class="ia-badge">Random Forest activo</div>
+    </div>
+    <div style="padding:16px">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Precisión del modelo</div><div class="kpi-val">87%</div><div class="kpi-tag tag-green">Random Forest</div></div>
+        <div class="kpi"><div class="kpi-label">Sin riesgo</div><div class="kpi-val">28</div><div class="kpi-tag tag-green">67%</div></div>
+        <div class="kpi"><div class="kpi-label">Riesgo medio</div><div class="kpi-val">8</div><div class="kpi-tag tag-yellow">19%</div></div>
+        <div class="kpi"><div class="kpi-label">Riesgo alto</div><div class="kpi-val">6</div><div class="kpi-tag tag-red">14%</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Comparación de algoritmos</div>
+          <div class="algo-card" style="border-color:#4a90e2;background:#f0f7ff">
+            <div><div class="algo-name">Random Forest</div><div class="algo-sub">Seleccionado como mejor modelo</div></div>
+            <div class="algo-metrics">
+              <div class="metric-pill selected">Precisión: 87%</div>
+              <div class="metric-pill selected">F1: 0.85</div>
+            </div>
+          </div>
+          <div class="algo-card">
+            <div><div class="algo-name">Árbol de decisión</div><div class="algo-sub">Modelo alternativo</div></div>
+            <div class="algo-metrics">
+              <div class="metric-pill">Precisión: 79%</div>
+              <div class="metric-pill">F1: 0.76</div>
+            </div>
+          </div>
+          <div style="margin-top:12px"><div class="card-title">Variables más influyentes</div>
+            <div class="var-row"><div style="width:130px;font-size:11px">Nota T1 actual</div><div class="var-bar"><div class="var-fill" style="width:92%"></div></div><div style="font-size:11px;width:30px;text-align:right">92%</div></div>
+            <div class="var-row"><div style="width:130px;font-size:11px">% de asistencia</div><div class="var-bar"><div class="var-fill" style="width:78%"></div></div><div style="font-size:11px;width:30px;text-align:right">78%</div></div>
+            <div class="var-row"><div style="width:130px;font-size:11px">Notas trimestres ant.</div><div class="var-bar"><div class="var-fill" style="width:61%"></div></div><div style="font-size:11px;width:30px;text-align:right">61%</div></div>
+            <div class="var-row"><div style="width:130px;font-size:11px">Faltas acumuladas</div><div class="var-bar"><div class="var-fill" style="width:45%"></div></div><div style="font-size:11px;width:30px;text-align:right">45%</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Distribución de riesgo — 3ro A</div>
+          <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Sin riesgo</span><span>28 estudiantes</span></div><div class="bar-track"><div class="bar-fill" style="width:67%;background:#16a34a"></div></div></div>
+          <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Riesgo medio</span><span>8 estudiantes</span></div><div class="bar-track"><div class="bar-fill" style="width:19%;background:#f59e0b"></div></div></div>
+          <div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Riesgo alto</span><span>6 estudiantes</span></div><div class="bar-track"><div class="bar-fill" style="width:14%;background:#ef4444"></div></div></div>
+          <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px;font-size:11px">
+            <div style="font-weight:700;margin-bottom:3px">🔔 Notificación automática activada</div>
+            <div style="color:#555">Los 6 estudiantes en riesgo alto fueron notificados a sus padres/tutores.</div>
+          </div>
+        </div>
+      </div>
+      <table class="table">
+        <thead><tr><th>Estudiante</th><th>Nota actual</th><th>Asistencia</th><th>Prob. reprobación</th><th>Riesgo IA</th></tr></thead>
+        <tbody>
+          <tr><td>Mamani, Juan C.</td><td>48</td><td>84%</td><td><div class="bar-track"><div class="bar-fill" style="width:82%;background:#ef4444"></div></div><span style="font-size:10px">82%</span></td><td><span class="risk-chip chip-red">Alto</span></td></tr>
+          <tr><td>Vargas, Luis M.</td><td>44</td><td>79%</td><td><div class="bar-track"><div class="bar-fill" style="width:88%;background:#ef4444"></div></div><span style="font-size:10px">88%</span></td><td><span class="risk-chip chip-red">Alto</span></td></tr>
+          <tr><td>Flores, Carlos A.</td><td>55</td><td>88%</td><td><div class="bar-track"><div class="bar-fill" style="width:54%;background:#f59e0b"></div></div><span style="font-size:10px">54%</span></td><td><span class="risk-chip chip-yellow">Medio</span></td></tr>
+          <tr><td>Quispe, María E.</td><td>71</td><td>92%</td><td><div class="bar-track"><div class="bar-fill" style="width:12%;background:#16a34a"></div></div><span style="font-size:10px">12%</span></td><td><span class="risk-chip chip-green">Sin riesgo</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMINISTRATIVO ══════════════ -->
+<div class="wireframe-page" id="admin">
+  <div class="page-label">Pantalla 7 — Dashboard Administrativo (SIN Malla Curricular)</div>
+  <div class="frame dash">
+    <div class="sidebar brown">
+      <div class="user-info">
+        <div class="user-avatar av-brown">RC</div>
+        <div class="user-name">Rosa Condori</div>
+        <div class="user-role">Administrativo — U.E. La Paz "A"</div>
+        <div class="admin-tag">Administrativo</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">General</div>
+        <div class="nav-item active"><div class="nav-dot nd-blue"></div> Dashboard</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Gestión</div>
+        <div class="nav-item"><div class="nav-dot nd-teal"></div> Usuarios y roles</div>
+        <div class="nav-item"><div class="nav-dot nd-gray"></div> Reportes</div>
+        <div class="nav-item"><div class="nav-dot nd-yellow"></div> Notificaciones</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Académico</div>
+        <div class="nav-item"><div class="nav-dot nd-orange"></div> Horarios</div>
+        <div class="nav-item"><div class="nav-dot nd-green"></div> Asistencia</div>
+      </div>
+      <div class="logout">⏻ Cerrar sesión</div>
+    </div>
+    <div class="main">
+      <div class="main-title">Panel administrativo</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Estudiantes matriculados</div><div class="kpi-val">487</div><div class="kpi-tag tag-blue">Gestión 2026</div></div>
+        <div class="kpi"><div class="kpi-label">Profesores activos</div><div class="kpi-val">24</div><div class="kpi-tag tag-green">12 materias</div></div>
+        <div class="kpi"><div class="kpi-label">Usuarios del sistema</div><div class="kpi-val">31</div><div class="kpi-tag tag-blue">4 roles</div></div>
+        <div class="kpi"><div class="kpi-label">Reportes generados</div><div class="kpi-val">18</div><div class="kpi-tag tag-yellow">Este mes</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Estado de registro por curso</div>
+          <div class="course-row"><span>1ro A</span><span>82 estudiantes</span><span class="status-pill sp-green">Completo</span></div>
+          <div class="course-row"><span>2do A</span><span>78 estudiantes</span><span class="status-pill sp-green">Completo</span></div>
+          <div class="course-row"><span>3ro A</span><span>84 estudiantes</span><span class="status-pill sp-yellow">En proceso</span></div>
+          <div class="course-row"><span>4to A</span><span>80 estudiantes</span><span class="status-pill sp-green">Completo</span></div>
+          <div class="course-row"><span>5to A</span><span>76 estudiantes</span><span class="status-pill sp-green">Completo</span></div>
+          <div class="course-row"><span>6to A</span><span>87 estudiantes</span><span class="status-pill sp-red">Pendiente</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tareas pendientes</div>
+          <div class="task-item"><div class="task-dot" style="background:#ef4444"></div><div><div style="font-weight:600;font-size:12px">Completar matrícula 6to A — 87 est.</div><div style="color:#888;font-size:10px">Vence: 25/03/2026</div></div></div>
+          <div class="task-item"><div class="task-dot" style="background:#f59e0b"></div><div><div style="font-weight:600;font-size:12px">Actualizar datos de contacto padres — 3ro A</div><div style="color:#888;font-size:10px">Vence: 28/03/2026</div></div></div>
+          <div class="task-item"><div class="task-dot" style="background:#4a90e2"></div><div><div style="font-weight:600;font-size:12px">Generar reporte mensual de asistencia</div><div style="color:#888;font-size:10px">Vence: 31/03/2026</div></div></div>
+          <div class="task-item"><div class="task-dot" style="background:#16a34a"></div><div><div style="font-weight:600;font-size:12px">Crear usuario para nuevo profesor de Química</div><div style="color:#888;font-size:10px">Sin fecha límite</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ NOTIFICACIONES ══════════════ -->
+<div class="wireframe-page" id="notificaciones">
+  <div class="page-label">Pantalla 8 — Notificaciones a Padres de Familia</div>
+  <div class="frame">
+    <div class="notas-header" style="background:#1e3a5f;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="notas-header-title">Notificaciones a padres de familia</div>
+        <div class="notas-header-sub">Alertas automáticas por riesgo y asistencia</div>
+      </div>
+      <div class="ia-badge">42 enviadas este mes</div>
+    </div>
+    <div style="padding:16px">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Enviadas hoy</div><div class="kpi-val">6</div><div class="kpi-tag tag-red">Riesgo alto</div></div>
+        <div class="kpi"><div class="kpi-label">Este mes</div><div class="kpi-val">42</div><div class="kpi-tag tag-blue">Total</div></div>
+        <div class="kpi"><div class="kpi-label">Pendientes</div><div class="kpi-val">3</div><div class="kpi-tag tag-yellow">Por enviar</div></div>
+        <div class="kpi"><div class="kpi-label">Padres registrados</div><div class="kpi-val">461</div><div class="kpi-tag tag-green">94%</div></div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="notif-card alto">
+            <div class="notif-title"><span>Juan Carlos Mamani — 3ro A</span><span style="color:#888;font-size:10px">Hoy 08:30</span></div>
+            <div class="notif-body">Su hijo presenta riesgo alto de reprobación en Matemáticas. Nota actual: 48/100. Se recomienda atención inmediata.</div>
+            <div class="notif-footer"><span class="risk-chip chip-red">Riesgo alto</span><span class="risk-chip chip-green" style="background:#d1fae5;color:#065f46">Enviado</span><span style="color:#888">a: padre.mamani@gmail.com</span></div>
+          </div>
+          <div class="notif-card alto">
+            <div class="notif-title"><span>Luis Vargas — 3ro A</span><span style="color:#888;font-size:10px">Hoy 08:30</span></div>
+            <div class="notif-body">Su hijo presenta riesgo alto en Matemáticas e Inglés. Asistencia: 79%. Se recomienda reunión con el tutor.</div>
+            <div class="notif-footer"><span class="risk-chip chip-red">Riesgo alto</span><span class="risk-chip chip-green" style="background:#d1fae5;color:#065f46">Enviado</span><span style="color:#888">a: m.vargas@hotmail.com</span></div>
+          </div>
+          <div class="notif-card medio">
+            <div class="notif-title"><span>Carlos Flores — 5to A</span><span style="color:#888;font-size:10px">Ayer 16:00</span></div>
+            <div class="notif-body">Su hijo ha superado el límite de inasistencias permitido (6 faltas). Se requiere justificación formal ante la dirección.</div>
+            <div class="notif-footer"><span class="risk-chip chip-yellow">Exceso faltas</span><span class="risk-chip chip-green" style="background:#d1fae5;color:#065f46">Enviado</span><span style="color:#888">a: flores.padre@gmail.com</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Configuración de alertas automáticas</div>
+          <div class="config-row"><div><div class="config-label">Riesgo alto (IA)</div><div class="config-sub">Envía cuando prob. reprobación > 70%</div></div><div class="toggle"></div></div>
+          <div class="config-row"><div><div class="config-label">Riesgo medio (IA)</div><div class="config-sub">Envía cuando prob. reprobación 40–70%</div></div><div class="toggle"></div></div>
+          <div class="config-row"><div><div class="config-label">Exceso de inasistencias</div><div class="config-sub">Notificar al superar 5 faltas</div></div><div class="toggle"></div></div>
+          <div class="config-row"><div><div class="config-label">Reporte trimestral</div><div class="config-sub">Enviar resumen al finalizar cada trimestre</div></div><div class="toggle"></div></div>
+          <div style="margin-top:14px"><div class="config-label" style="font-size:12px;font-weight:700;margin-bottom:8px">Notificación manual</div>
+            <select class="select-box" style="width:100%;margin-bottom:8px"><option>Seleccionar estudiante...</option></select>
+            <textarea style="width:100%;border:1.5px solid #e5e7eb;border-radius:6px;padding:8px;font-size:12px;height:60px;resize:none;color:#aaa">Escribir mensaje personalizado...</textarea>
+            <button class="btn-sm btn-primary" style="width:100%;margin-top:8px">Enviar notificación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HORARIO ══════════════ -->
+<div class="wireframe-page" id="horario">
+  <div class="page-label">Pantalla 9 — Horario Semanal</div>
+  <div class="frame" style="padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="notas-header-title" style="font-size:14px">Horario semanal</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="select-box" style="max-width:100px"><option>3ro A</option></select>
+        <button class="btn-sm">Exportar PDF</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;font-size:10px">
+      <span style="background:#fce7f3;padding:2px 8px;border-radius:4px">Exactas</span>
+      <span style="background:#e0e7ff;padding:2px 8px;border-radius:4px">Humanidades</span>
+      <span style="background:#d1fae5;padding:2px 8px;border-radius:4px">Ciencias</span>
+      <span style="background:#e0f2fe;padding:2px 8px;border-radius:4px">Idiomas</span>
+      <span style="background:#fef3c7;padding:2px 8px;border-radius:4px">Deportes</span>
+    </div>
+    <div class="horario-grid">
+      <div></div>
+      <div class="hg-header" style="background:#1e3a5f">Lunes 22</div>
+      <div class="hg-header" style="background:#374151">Martes 23</div>
+      <div class="hg-header" style="background:#374151">Miércoles 24</div>
+      <div class="hg-header" style="background:#374151">Jueves 25</div>
+      <div class="hg-header" style="background:#374151">Viernes 26</div>
+      <div class="hg-time">08:00</div>
+      <div class="hg-cell mat"><div class="cell-materia">Matemáticas</div><div class="cell-prof">Prof. Rojas</div><div class="cell-aula">Aula 3A</div></div>
+      <div class="hg-cell cn"><div class="cell-materia">Cs. Naturales</div><div class="cell-prof">Prof. Lima</div></div>
+      <div class="hg-cell ing"><div class="cell-materia">Inglés</div><div class="cell-prof">Prof. Morales</div></div>
+      <div class="hg-cell mat"><div class="cell-materia">Matemáticas</div><div class="cell-prof">Prof. Rojas</div></div>
+      <div class="hg-cell len"><div class="cell-materia">Lenguaje</div><div class="cell-prof">Prof. Vargas</div></div>
+      <div class="hg-time">09:45</div>
+      <div class="hg-cell len"><div class="cell-materia">Lenguaje</div><div class="cell-prof">Prof. Vargas</div></div>
+      <div class="hg-cell mat"><div class="cell-materia">Matemáticas</div><div class="cell-prof">Prof. Rojas</div></div>
+      <div class="hg-cell cn"><div class="cell-materia">Cs. Naturales</div><div class="cell-prof">Prof. Lima</div></div>
+      <div class="hg-cell len"><div class="cell-materia">Lenguaje</div><div class="cell-prof">Prof. Vargas</div></div>
+      <div class="hg-cell mat"><div class="cell-materia">Matemáticas</div><div class="cell-prof">Prof. Rojas</div></div>
+      <div class="hg-cell receso">— Receso 11:15 – 11:30 —</div>
+      <div class="hg-time">11:30</div>
+      <div class="hg-cell fis"><div class="cell-materia">Física</div><div class="cell-prof">Prof. Rojas</div></div>
+      <div class="hg-cell len"><div class="cell-materia">Lenguaje</div><div class="cell-prof">Prof. Vargas</div></div>
+      <div class="hg-cell his"><div class="cell-materia">Historia</div><div class="cell-prof">Prof. Choque</div></div>
+      <div class="hg-cell fis"><div class="cell-materia">Física</div><div class="cell-prof">Prof. Rojas</div></div>
+      <div class="hg-cell cn"><div class="cell-materia">Cs. Naturales</div><div class="cell-prof">Prof. Lima</div></div>
+      <div class="hg-time">14:00</div>
+      <div class="hg-cell his"><div class="cell-materia">Historia</div><div class="cell-prof">Prof. Choque</div></div>
+      <div class="hg-cell libre">Libre</div>
+      <div class="hg-cell ing"><div class="cell-materia">Inglés</div><div class="cell-prof">Prof. Morales</div></div>
+      <div class="hg-cell libre">Libre</div>
+      <div class="hg-cell his"><div class="cell-materia">Historia</div><div class="cell-prof">Prof. Choque</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ESTUDIANTE ══════════════ -->
+<div class="wireframe-page" id="estudiante">
+  <div class="page-label">Pantalla 10 — Dashboard Estudiante</div>
+  <div class="frame dash">
+    <div class="sidebar green">
+      <div class="user-info">
+        <div class="user-avatar av-green">JM</div>
+        <div class="user-name">Juan Carlos Mamani</div>
+        <div class="user-role">Estudiante · 3ro A · Código: 2024-018</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">Mi Portal</div>
+        <div class="nav-item active"><div class="nav-dot nd-blue"></div> Inicio</div>
+        <div class="nav-item"><div class="nav-dot nd-orange"></div> Mis notas</div>
+        <div class="nav-item"><div class="nav-dot nd-yellow"></div> Mi horario</div>
+        <div class="nav-item"><div class="nav-dot nd-green"></div> Mi asistencia</div>
+        <div class="nav-item"><div class="nav-dot nd-purple"></div> Mi predicción</div>
+      </div>
+      <div class="logout">⏻ Cerrar sesión</div>
+    </div>
+    <div class="main">
+      <div class="main-title">Bienvenido, Juan Carlos</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Promedio general</div><div class="kpi-val">62</div><div class="kpi-tag tag-yellow">Trimestre 1</div></div>
+        <div class="kpi"><div class="kpi-label">Materias aprobadas</div><div class="kpi-val">5/8</div><div class="kpi-tag tag-blue">Hasta ahora</div></div>
+        <div class="kpi"><div class="kpi-label">Asistencia</div><div class="kpi-val">84%</div><div class="kpi-tag tag-yellow">Atención</div></div>
+        <div class="kpi"><div class="kpi-label">Estado general</div><div class="kpi-val" style="font-size:16px">En riesgo</div><div class="kpi-tag tag-red">IA detectó alerta</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Mis notas — Trimestre 1</div>
+          <div class="est-notas-row"><span>Matemáticas</span><span class="risk-chip chip-red">48</span><span class="risk-chip chip-red">Riesgo</span></div>
+          <div class="est-notas-row"><span>Lenguaje</span><span class="risk-chip chip-green">71</span><span class="risk-chip chip-green">Aprobado</span></div>
+          <div class="est-notas-row"><span>Ciencias Naturales</span><span class="risk-chip chip-green">68</span><span class="risk-chip chip-green">Aprobado</span></div>
+          <div class="est-notas-row"><span>Física</span><span class="risk-chip chip-yellow">55</span><span class="risk-chip chip-yellow">Atención</span></div>
+          <div class="est-notas-row"><span>Historia</span><span class="risk-chip chip-green">74</span><span class="risk-chip chip-green">Aprobado</span></div>
+          <div class="est-notas-row"><span>Inglés</span><span class="risk-chip chip-red">44</span><span class="risk-chip chip-red">Riesgo</span></div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Horario hoy — lunes</div>
+            <div class="risk-row"><div class="risk-info">08:00</div><span class="risk-chip" style="background:#fce7f3;color:#9d174d">Mat</span><div><div class="risk-name">Matemáticas</div><div class="risk-info">Prof. Rojas</div></div></div>
+            <div class="risk-row"><div class="risk-info">09:45</div><span class="risk-chip" style="background:#e0e7ff;color:#3730a3">Len</span><div><div class="risk-name">Lenguaje</div><div class="risk-info">Prof. Vargas</div></div></div>
+            <div class="risk-row"><div class="risk-info">11:30</div><span class="risk-chip" style="background:#d1fae5;color:#065f46">Fís</span><div><div class="risk-name">Física</div><div class="risk-info">Prof. Rojas</div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Predicción IA</div>
+            <div class="prediccion-box pred-alto"><div class="pred-title" style="color:#b91c1c">Riesgo alto — Matemáticas</div><div class="pred-detail">Nota actual: 48 · Asistencia: 76%</div></div>
+            <div class="prediccion-box pred-medio"><div class="pred-title" style="color:#92400e">Riesgo medio — Física</div><div class="pred-detail">Nota actual: 55 · Asistencia: 88%</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:30px;color:#888;font-size:12px">
+  Sistema de Gestión Académica — U.E. La Paz "A" · Wireframes actualizados · Sin Malla Curricular en Administrativo
+</div>
+
+</body>
+</html>

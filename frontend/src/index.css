@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --color-director: #1e3a5f;
+  --color-profesor: #8B0000;
+  --color-admin: #4a2c0a;
+  --color-estudiante: #1a4731;
+  
+  --color-primary: #4a90e2;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  
+  --bg-main: #f8fafc;
+  --card-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-main);
+  color: #1a1a2e;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Base Component Styles */
+@layer components {
+  .kpi-card {
+    @apply bg-white rounded-lg p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)];
+  }
+  
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+}
+
