@@ -7,30 +7,22 @@ const AdminLayout = () => {
     {
       title: 'General',
       items: [
-        { label: 'Dashboard', path: '/administrativo', dotColor: 'bg-[#60a5fa]', exact: true },
+        { label: 'Dashboard',       path: '/administrativo',               dotHex: '#007AFF', exact: true },
       ]
     },
-    {
-      title: 'Gestión',
-      items: [
-        { label: 'Usuarios y roles', path: '/administrativo/usuarios', dotColor: 'bg-[#2dd4bf]' },
-        { label: 'Reportes', path: '/administrativo/reportes', dotColor: 'bg-[#9ca3af]' },
-        { label: 'Notificaciones', path: '/administrativo/notificaciones', dotColor: 'bg-[#fbbf24]' },
-      ]
-    },
-    {
-      title: 'Académico',
-      items: [
-        { label: 'Horarios', path: '/administrativo/horarios', dotColor: 'bg-[#fb923c]' },
-        { label: 'Asistencia', path: '/administrativo/asistencia', dotColor: 'bg-[#34d399]' },
-      ]
-    }
+      {
+        title: 'Gestión',
+        items: [
+          { label: 'Cursos', path: '/administrativo/cursos', dotHex: '#FF9500' },
+          { label: 'Materias', path: '/administrativo/materias', dotHex: '#FF9500' },
+          { label: 'Horarios', path: '/administrativo/horarios', dotHex: '#34C759' },
+        ]
+      }
   ];
 
   return (
     <SidebarLayout
       menuGroups={menuGroups}
-      sidebarColor="bg-[#4a2c0a]"
       headerTitle="Panel Administrativo"
       headerSubtitle="U.E. La Paz 'A' · Gestión 2026"
     >
@@ -40,4 +32,3 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
-

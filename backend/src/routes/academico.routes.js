@@ -14,9 +14,13 @@ router.post('/materias', academicoController.createMateria);
 
 // Cursos
 router.get('/cursos', academicoController.getCursos);
+router.post('/cursos', academicoController.createCurso);
 
 // Docentes (lista filtrada)
 router.get('/docentes', academicoController.getDocentes);
+
+// Dashboard del Director (datos reales)
+router.get('/director/dashboard', authMiddleware(['DIRECTOR']), academicoController.getDirectorDashboard);
 
 // Programaciones (Horarios)
 router.get('/programaciones', programacionesController.getProgramaciones);

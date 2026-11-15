@@ -1,64 +1,81 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, BookOpen, Briefcase, GraduationCap, Eye, EyeOff } from 'lucide-react';
+import authService from '../services/auth.service';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const roles = [
-  { id: 'DIRECTOR', label: 'Director', icon: User },
-  { id: 'PROFESOR', label: 'Docente', icon: BookOpen },
-  { id: 'ADMINISTRATIVO', label: 'Admin', icon: Briefcase },
-  { id: 'ESTUDIANTE', label: 'Estudiante', icon: GraduationCap },
+  { id: 'DIRECTOR', label: 'Director' },
+  { id: 'PROFESOR', label: 'Docente' },
+  { id: 'ADMINISTRATIVO', label: 'Administrativo' },
+  { id: 'ESTUDIANTE', label: 'Estudiante' },
 ];
 
+const dashboardRoutes = {
+  DIRECTOR: '/director',
+  PROFESOR: '/profesor',
+  ADMINISTRATIVO: '/administrativo',
+  ESTUDIANTE: '/estudiante',
+};
+
 const Login = () => {
-  const [selectedRole, setSelectedRole] = useState('ADMINISTRATIVO');
+  const [selectedRole, setSelectedRole] = useState('DIRECTOR');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
-  
-  const { login, error, user } = useAuth();
+  const [step, setStep] = useState(1);
+  const [tempToken, setTempToken] = useState('');
+  const [code, setCode] = useState('');
+  const [mode, setMode] = useState('login');
+  const [requiresSetup, setRequiresSetup] = useState(false);
+  const [setupQr, setSetupQr] = useState('');
+  const [manualKey, setManualKey] = useState('');
+  const [resetTempToken, setResetTempToken] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [formMessage, setFormMessage] = useState('');
+
+  const { login, authenticate2FA, activate2FA, error, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      redirectByRole(user.rol);
-    }
+    if (user && dashboardRoutes[user.rol]) navigate(dashboardRoutes[user.rol]);
   }, [user, navigate]);
-
-  const redirectByRole = (rol) => {
-    switch (rol) {
-      case 'DIRECTOR':
-        navigate('/director');
-        break;
-      case 'PROFESOR':
-        navigate('/profesor');
-        break;
-      case 'ADMINISTRATIVO':
-        navigate('/administrativo');
-        break;
-      case 'ESTUDIANTE':
-        navigate('/estudiante');
-        break;
-      default:
-        break;
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
-    
-    if (!email || !password) {
-      setLocalError('Por favor ingrese usuario y contraseña');
+
+    if (!email.trim() || !password) {
+      setLocalError('Ingrese sus credenciales institucionales');
       return;
     }
 
     try {
       setLoading(true);
       const data = await login(email, password);
-      redirectByRole(data.user.rol);
+      if (data.requires2FA) {
+        setTempToken(data.tempToken);
+        setRequiresSetup(false);
+        setCode('');
+        setStep(2);
+        return;
+      }
+      if (data.requiresSetup2FA) {
+        setTempToken(data.tempToken);
+        setRequiresSetup(true);
+        setSetupQr(data.qrDataUrl || '');
+        setManualKey(data.manualKey || '');
+        setCode('');
+        setStep(2);
+        return;
+      }
+      if (dashboardRoutes[data.user.rol]) navigate(dashboardRoutes[data.user.rol]);
     } catch (err) {
       setLocalError(err.message);
     } finally {
@@ -66,127 +83,527 @@ const Login = () => {
     }
   };
 
+  const handleVerify2FA = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+
+    if (!/^\d{6}$/.test(code)) {
+      setLocalError('Ingrese el código de 6 dígitos de su app Authenticator');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const data = requiresSetup
+        ? await activate2FA(tempToken, code)
+        : await authenticate2FA(tempToken, code);
+      if (dashboardRoutes[data.user.rol]) navigate(dashboardRoutes[data.user.rol]);
+    } catch (err) {
+      setLocalError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotEmail = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+    setFormMessage('');
+
+    if (!email.trim()) {
+      setLocalError('Ingrese su correo');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const data = await authService.forgotPassword(email.trim());
+      setResetTempToken(data.tempToken);
+      setResetCode('');
+      setFormMessage(data.message);
+      setMode('forgot-reset');
+    } catch (err) {
+      setLocalError(err.response?.data?.error || 'No se pudo iniciar la recuperación');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+    setFormMessage('');
+
+    if (!/^\d{6}$/.test(resetCode)) {
+      setLocalError('Ingrese el código de 6 dígitos de su app Authenticator');
+      return;
+    }
+    if (newPassword.length < 10 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setLocalError('La contraseña debe tener al menos 10 caracteres, una letra y un número');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setLocalError('Las contraseñas no coinciden');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await authService.resetPassword(resetTempToken, resetCode, newPassword);
+      setMode('login');
+      setStep(1);
+      setPassword('');
+      setFormMessage('Contraseña actualizada. Inicie sesión con su nueva contraseña.');
+    } catch (err) {
+      setLocalError(err.response?.data?.error || 'No se pudo restablecer la contraseña');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForgot = () => {
+    setMode('login');
+    setStep(1);
+    setResetTempToken('');
+    setResetCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowNewPassword(false);
+    setLocalError('');
+    setFormMessage('');
+  };
+
+  const resetLogin = () => {
+    setStep(1);
+    setTempToken('');
+    setCode('');
+    setRequiresSetup(false);
+    setSetupQr('');
+    setManualKey('');
+    setLocalError('');
+  };
+
   return (
-    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4 font-sans">
-      
-      {/* Main Card */}
-      <div className="w-full max-w-[900px] bg-white rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] flex overflow-hidden min-h-[480px]">
-        
-        {/* Left Column: Form */}
-        <div className="w-full md:w-[60%] p-10 md:p-12 flex flex-col justify-center">
-          
-          <div className="text-[11px] font-bold text-[#4a90e2] tracking-[2px] mb-5 uppercase">
-            U.E. LA PAZ "A"
+    <div
+      className="min-h-screen flex items-center justify-center p-5 font-sans relative"
+      style={{ backgroundColor: 'var(--ios-bg)' }}
+    >
+      <div className="absolute top-5 right-5">
+        <ThemeToggle showLabel={true} />
+      </div>
+
+      <div
+        className="w-full max-w-[860px] flex overflow-hidden"
+        style={{
+          backgroundColor: 'var(--ios-surface)',
+          borderRadius: 'var(--ios-radius-lg)',
+          boxShadow: 'var(--ios-shadow-md)',
+          minHeight: '500px',
+        }}
+      >
+        <div className="flex-1 p-10 md:p-12 flex flex-col justify-center">
+          <div className="flex items-center gap-3 mb-8">
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ backgroundColor: 'var(--ios-blue)' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3L2 8l10 5 10-5-10-5z" fill="white" opacity="0.9" />
+                <path d="M2 16l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+                <path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-[13px] font-bold" style={{ color: 'var(--ios-blue)' }}>
+                U.E. La Paz &quot;A&quot;
+              </div>
+              <div className="text-[11px]" style={{ color: 'var(--ios-secondary)' }}>
+                Sistema Académico 2026
+              </div>
+            </div>
           </div>
 
-          <div className="mb-6">
-            <h1 className="text-[26px] font-bold text-[#1a1a2e] mb-1">Login</h1>
-            <p className="text-[12px] text-slate-400">
-              Bienvenido al sistema de gestión académica integral.
+          <div className="mb-7">
+            <h1 className="text-[26px] font-bold mb-1" style={{ color: 'var(--ios-label)' }}>
+              {mode === 'forgot-email'
+                ? 'Recuperar contraseña'
+                : mode === 'forgot-reset'
+                  ? 'Verificar recuperación'
+                  : step === 1 ? 'Iniciar sesión' : requiresSetup ? 'Configurar 2FA' : 'Verificación en dos pasos'}
+            </h1>
+            <p className="text-[13px]" style={{ color: 'var(--ios-secondary)' }}>
+              {mode === 'forgot-email'
+                ? 'No se envía ningún correo; se usará el código de Authenticator.'
+                : mode === 'forgot-reset'
+                  ? 'Ingrese el código de 6 dígitos de su app y una nueva contraseña.'
+                    : step === 1
+                    ? 'Ingresa tus credenciales para acceder al sistema.'
+                    : requiresSetup
+                      ? 'Escanea el QR y confirma el código para activar 2FA.'
+                      : 'Abre tu app Authenticator y escribe el código actual.'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            
-            {/* Role Selector */}
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-3 uppercase tracking-[1.5px]">Selecciona tu rol</label>
-              <div className="flex gap-2 flex-wrap">
-                {roles.map((role) => {
-                  const isActive = selectedRole === role.id;
-                  return (
-                    <button
-                      key={role.id}
-                      type="button"
-                      onClick={() => setSelectedRole(role.id)}
-                      className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all border-[1.5px] ${
-                        isActive 
-                          ? 'bg-[#4a90e2] text-white border-[#4a90e2]' 
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {role.label}
-                    </button>
-                  );
-                })}
-              </div>
+          {formMessage && (
+            <div
+              className="mb-5 text-[12px] font-medium px-4 py-3 rounded-xl"
+              style={{ backgroundColor: 'var(--ios-green-light)', color: 'var(--ios-green)' }}
+            >
+              {formMessage}
             </div>
+          )}
 
-            {/* Email Input */}
-            <div className="space-y-1">
-              <label className="block text-[11px] text-slate-500">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="usuario@lapaz.edu.bo"
-                className="w-full bg-transparent border-b-[1.5px] border-slate-200 py-2 text-[13px] text-slate-700 outline-none focus:border-[#4a90e2] transition-colors placeholder:text-slate-300"
-              />
-            </div>
-
-            {/* Password Input */}
-            <div className="space-y-1">
-              <label className="block text-[11px] text-slate-500">Contraseña</label>
-              <div className="relative">
+          {mode === 'forgot-email' ? (
+            <form onSubmit={handleForgotEmail} className="space-y-5">
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Email de la cuenta
+                </label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Ingresa tu contraseña"
-                  className="w-full bg-transparent border-b-[1.5px] border-slate-200 py-2 text-[13px] text-slate-700 outline-none focus:border-[#4a90e2] transition-colors placeholder:text-slate-300 pr-10"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="usuario@lapaz.edu.bo"
+                  className="ios-input"
+                  autoComplete="email"
+                  autoFocus
                 />
+                <p className="text-[11px] mt-2" style={{ color: 'var(--ios-secondary)' }}>
+                  Si la cuenta existe y tiene 2FA activo, se solicitará el código de Authenticator. No se envía ningún correo.
+                </p>
+              </div>
+
+              {localError && (
+                <div
+                  className="text-[12px] font-medium px-4 py-3 rounded-xl"
+                  style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}
+                >
+                  {localError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <button type="submit" disabled={loading} className="ios-btn-primary w-full">
+                  {loading ? 'Verificando...' : 'Continuar'}
+                </button>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#4a90e2] transition-colors"
+                  onClick={resetForgot}
+                  className="w-full flex items-center justify-center gap-1 text-[12px] font-semibold py-2"
+                  style={{ color: 'var(--ios-secondary)' }}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  <ArrowLeft size={14} />
+                  Volver al inicio
                 </button>
               </div>
-            </div>
-
-            {/* Error Message */}
-            {(localError || error) && (
-              <div className="text-[11px] text-red-500 font-medium">
-                {localError || error}
+            </form>
+          ) : mode === 'forgot-reset' ? (
+            <form onSubmit={handleResetPassword} className="space-y-5">
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Código de 6 dígitos
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  className="ios-input text-center text-2xl tracking-[0.45em]"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
               </div>
-            )}
 
-            {/* Submit Button */}
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-[#4a90e2] hover:bg-[#357abd] text-white text-[13px] font-bold tracking-[1px] px-10 py-3 rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center min-w-[140px]"
-              >
-                {loading ? (
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  'LOGIN'
-                )}
-              </button>
-            </div>
-          </form>
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Nueva contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 10 caracteres"
+                    className="ios-input pr-12"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((value) => !value)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: 'var(--ios-tertiary)' }}
+                    aria-label={showNewPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p className="text-[11px] mt-2" style={{ color: 'var(--ios-secondary)' }}>
+                  Debe tener al menos 10 caracteres, una letra y un número.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Confirmar nueva contraseña
+                </label>
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repite la contraseña"
+                  className="ios-input"
+                  autoComplete="new-password"
+                />
+              </div>
+
+              {localError && (
+                <div
+                  className="text-[12px] font-medium px-4 py-3 rounded-xl"
+                  style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}
+                >
+                  {localError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <button type="submit" disabled={loading} className="ios-btn-primary w-full">
+                  {loading ? 'Actualizando...' : 'Restablecer contraseña'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForgot}
+                  className="w-full flex items-center justify-center gap-1 text-[12px] font-semibold py-2"
+                  style={{ color: 'var(--ios-secondary)' }}
+                >
+                  <ArrowLeft size={14} />
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : step === 2 ? (
+            <form onSubmit={handleVerify2FA} className="space-y-5">
+              {requiresSetup && setupQr && (
+                <div className="text-center">
+                  <p className="text-[12px] font-semibold mb-3" style={{ color: 'var(--ios-label)' }}>
+                    Escanea este QR con Authenticator
+                  </p>
+                  <img
+                    src={setupQr}
+                    alt="QR para activar 2FA"
+                    className="w-48 h-48 mx-auto border rounded-2xl"
+                    style={{ borderColor: 'var(--ios-separator-2)' }}
+                  />
+                  {manualKey && (
+                    <code className="block text-[11px] font-mono break-all mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: 'var(--ios-bg)', color: 'var(--ios-label)' }}>
+                      {manualKey}
+                    </code>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  {requiresSetup ? 'Código de 6 dígitos de la app' : 'Código de 6 dígitos'}
+                </label>
+                <input
+                  id="login-2fa"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  className="ios-input text-center text-2xl tracking-[0.45em]"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
+                <p className="text-[11px] mt-2" style={{ color: 'var(--ios-secondary)' }}>
+                  {requiresSetup
+                    ? 'Después de escanear, escribe el código actual de UE La Paz A para activarlo.'
+                    : 'El código expira cada 30 segundos. Si falla, espera el siguiente intento.'}
+                </p>
+              </div>
+
+              {(localError || error) && (
+                <div
+                  className="text-[12px] font-medium px-4 py-3 rounded-xl"
+                  style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}
+                >
+                  {localError || error}
+                </div>
+              )}
+
+              <div className="pt-1 space-y-2">
+                <button type="submit" disabled={loading || code.length !== 6} className="ios-btn-primary w-full">
+                  {loading
+                    ? requiresSetup ? 'Activando...' : 'Verificando...'
+                    : requiresSetup ? 'Confirmar y activar 2FA' : 'Verificar y entrar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetLogin}
+                  className="w-full flex items-center justify-center gap-1 text-[12px] font-semibold py-2"
+                  style={{ color: 'var(--ios-secondary)' }}
+                >
+                  <ArrowLeft size={14} />
+                  Volver
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label
+                  className="block text-[11px] font-semibold mb-2.5 uppercase tracking-wider"
+                  style={{ color: 'var(--ios-secondary)' }}
+                >
+                  Tu rol
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {roles.map((role) => {
+                    const isActive = selectedRole === role.id;
+                    return (
+                      <button
+                        key={role.id}
+                        type="button"
+                        onClick={() => setSelectedRole(role.id)}
+                        className="px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+                        style={isActive
+                          ? { backgroundColor: 'var(--ios-blue)', color: '#fff', boxShadow: 'var(--ios-shadow-blue)' }
+                          : { backgroundColor: 'var(--ios-bg)', color: 'var(--ios-secondary)' }}
+                      >
+                        {role.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Email institucional
+                </label>
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="usuario@lapaz.edu.bo"
+                  className="ios-input"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
+                  Contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Tu contraseña"
+                    className="ios-input pr-12"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: 'var(--ios-tertiary)' }}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-right -mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot-email');
+                    setLocalError('');
+                    setFormMessage('');
+                  }}
+                  className="text-[12px] font-semibold"
+                  style={{ color: 'var(--ios-blue)' }}
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+
+              {(localError || error) && (
+                <div
+                  className="text-[12px] font-medium px-4 py-3 rounded-xl"
+                  style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}
+                >
+                  {localError || error}
+                </div>
+              )}
+
+              <div className="pt-1">
+                <button
+                  id="login-submit"
+                  type="submit"
+                  disabled={loading}
+                  className="ios-btn-primary w-full"
+                >
+                  {loading ? 'Validando...' : 'Ingresar al sistema'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        {/* Right Column: Illustration */}
-        <div className="hidden md:flex w-[40%] bg-gradient-to-br from-[#4a90e2] to-[#1e3a8a] relative items-center justify-center">
-          <svg width="180" height="180" viewBox="0 0 180 180" fill="none" className="opacity-90">
-            <rect x="30" y="30" width="120" height="90" rx="8" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
-            <circle cx="52" cy="52" r="10" fill="rgba(255,255,255,0.4)"/>
-            <circle cx="52" cy="78" r="10" fill="rgba(255,255,255,0.3)"/>
-            <circle cx="52" cy="104" r="10" fill="rgba(255,255,255,0.2)"/>
-            <rect x="70" y="47" width="60" height="8" rx="4" fill="rgba(255,255,255,0.4)"/>
-            <rect x="70" y="73" width="45" height="8" rx="4" fill="rgba(255,255,255,0.3)"/>
-            <rect x="70" y="99" width="52" height="8" rx="4" fill="rgba(255,255,255,0.2)"/>
-            <circle cx="130" cy="40" r="20" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" strokeWidth="2"/>
-            <circle cx="130" cy="40" r="12" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeDasharray="6 4"/>
-            <rect x="20" y="135" width="140" height="18" rx="9" fill="rgba(255,255,255,0.15)"/>
-            <rect x="20" y="158" width="90" height="12" rx="6" fill="rgba(255,255,255,0.1)"/>
-          </svg>
+        <div
+          className="hidden md:flex w-[38%] flex-col items-center justify-center relative overflow-hidden"
+          style={{ background: 'linear-gradient(145deg, var(--ios-blue) 0%, var(--ios-blue-dark) 100%)' }}
+        >
+          <div
+            className="absolute -top-12 -right-12 w-48 h-48 rounded-full"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+          />
+          <div
+            className="absolute -bottom-16 -left-16 w-64 h-64 rounded-full"
+            style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
+          />
+
+          <div className="relative z-10 text-center px-8">
+            <div
+              className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}
+            >
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3L2 8l10 5 10-5-10-5z" fill="white" opacity="0.95" />
+                <path d="M2 16l10 5 10-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.7" />
+                <path d="M2 12l10 5 10-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              </svg>
+            </div>
+
+            <h2 className="text-white text-[18px] font-bold mb-2 leading-snug">
+              Gestión Académica
+            </h2>
+            <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Unidad Educativa<br />La Paz &quot;A&quot; · Bolivia
+            </p>
+
+            <div className="mt-8 space-y-2">
+              {[
+                'Registro de notas y asistencia',
+                'Predicción con IA · Random Forest',
+                'Acceso protegido con 2FA',
+              ].map((feat) => (
+                <div key={feat} className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-white opacity-60" />
+                  {feat}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -194,4 +611,3 @@ const Login = () => {
 };
 
 export default Login;
-

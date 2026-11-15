@@ -1,5 +1,10 @@
 import api from './api';
 
+export const getDirectorDashboard = async () => {
+  const response = await api.get('/api/academico/director/dashboard');
+  return response.data;
+};
+
 export const getMaterias = async () => {
   const response = await api.get('/api/academico/materias');
   return response.data;
@@ -12,6 +17,11 @@ export const createMateria = async (materiaData) => {
 
 export const getCursos = async () => {
   const response = await api.get('/api/academico/cursos');
+  return response.data;
+};
+
+export const createCurso = async (cursoData) => {
+  const response = await api.post('/api/academico/cursos', cursoData);
   return response.data;
 };
 

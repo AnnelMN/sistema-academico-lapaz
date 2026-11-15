@@ -1,24 +1,149 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
+/* ─── Soft UI & Neumorphism Design System ──────────────────────── */
 :root {
-  --color-director: #1e3a5f;
-  --color-profesor: #8B0000;
-  --color-admin: #4a2c0a;
-  --color-estudiante: #1a4731;
+  /* Paleta Soft UI Base (Modo Claro) */
+  --soft-bg:           #EBF0F5;
+  --soft-surface:      #FFFFFF;
+  --soft-surface-glass: rgba(255, 255, 255, 0.75);
+  --soft-surface-2:    #F3F7FA;
   
-  --color-primary: #4a90e2;
-  --color-success: #16a34a;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  
-  --bg-main: #f8fafc;
-  --card-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  --soft-shadow-flat:  10px 10px 24px rgba(166, 180, 200, 0.35), -10px -10px 24px #FFFFFF;
+  --soft-shadow-sm:    5px 5px 14px rgba(166, 180, 200, 0.25), -5px -5px 14px #FFFFFF;
+  --soft-shadow-inset: inset 3px 3px 7px rgba(166, 180, 200, 0.25), inset -3px -3px 7px #FFFFFF;
+  --soft-shadow-pill:  0 6px 18px rgba(0, 122, 255, 0.18);
+
+  --ios-blue:          #1E3A8A;
+  --ios-blue-dark:     #0F172A;
+  --ios-blue-light:    #EEF2FF;
+
+  --ios-green:         #10B981;
+  --ios-green-light:   #ECFDF5;
+  --ios-red:           #EF4444;
+  --ios-red-light:     #FEF2F2;
+  --ios-orange:        #F59E0B;
+  --ios-orange-light:  #FFFBEB;
+
+  --ios-bg:            var(--soft-bg);
+  --ios-surface:       var(--soft-surface);
+  --ios-surface-2:     var(--soft-surface-2);
+
+  --ios-separator:     #DDE3EA;
+  --ios-separator-2:   #EBF0F5;
+
+  --ios-label:         #1E293B;
+  --ios-label-2:       #334155;
+  --ios-secondary:     #64748B;
+  --ios-tertiary:      #94A3B8;
+
+  --ios-active-bg:     #FFFFFF;
+  --ios-active-text:   #1E3A8A;
+  --ios-active-shadow: 4px 8px 20px rgba(166, 180, 200, 0.45);
+
+  --ios-shadow:        var(--soft-shadow-flat);
+  --ios-shadow-md:     14px 14px 32px rgba(166, 180, 200, 0.4), -14px -14px 32px #FFFFFF;
+  --ios-shadow-blue:   0 8px 24px rgba(30, 58, 138, 0.28);
+
+
+  --ios-radius-sm:     14px;
+  --ios-radius:        22px;
+  --ios-radius-lg:     30px;
 }
 
+/* ─── Tema Blanco y Negro (B&W / Alto Contraste Monocromático) ─── */
+html.theme-bw, [data-theme="bw"] {
+  --soft-bg:           #E8E8E8;
+  --soft-surface:      #FFFFFF;
+  --soft-surface-glass: rgba(255, 255, 255, 0.85);
+  --soft-surface-2:    #F0F0F0;
+
+  --soft-shadow-flat:  8px 8px 20px rgba(0, 0, 0, 0.12), -8px -8px 20px #FFFFFF;
+  --soft-shadow-sm:    4px 4px 10px rgba(0, 0, 0, 0.08), -4px -4px 10px #FFFFFF;
+  --soft-shadow-inset: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px #FFFFFF;
+
+  --ios-blue:          #111111;
+  --ios-blue-dark:     #000000;
+  --ios-blue-light:    #E0E0E0;
+
+  --ios-green:         #333333;
+  --ios-green-light:   #ECECEC;
+  --ios-red:           #111111;
+  --ios-red-light:     #E8E8E8;
+  --ios-orange:        #444444;
+  --ios-orange-light:  #EEEEEE;
+
+  --ios-bg:            var(--soft-bg);
+  --ios-surface:       var(--soft-surface);
+  --ios-surface-2:     var(--soft-surface-2);
+
+  --ios-separator:     #CCCCCC;
+  --ios-separator-2:   #E0E0E0;
+
+  --ios-label:         #000000;
+  --ios-label-2:       #111111;
+  --ios-secondary:     #555555;
+  --ios-tertiary:      #777777;
+
+  --ios-active-bg:     #111111;
+  --ios-active-text:   #FFFFFF;
+  --ios-active-shadow: 4px 6px 16px rgba(0, 0, 0, 0.2);
+
+  --ios-shadow:        var(--soft-shadow-flat);
+  --ios-shadow-md:     10px 10px 24px rgba(0, 0, 0, 0.15), -10px -10px 24px #FFFFFF;
+  --ios-shadow-blue:   0 8px 20px rgba(0, 0, 0, 0.3);
+
+  filter: grayscale(100%);
+}
+
+/* ─── Tema Oscuro (Dark Mode Glass) ──────────────────────────── */
+html.theme-dark, [data-theme="dark"] {
+  --soft-bg:           #14171F;
+  --soft-surface:      #1F2430;
+  --soft-surface-glass: rgba(31, 36, 48, 0.85);
+  --soft-surface-2:    #272D3C;
+
+  --soft-shadow-flat:  8px 8px 24px rgba(8, 10, 14, 0.6), -8px -8px 24px rgba(40, 46, 62, 0.4);
+  --soft-shadow-sm:    4px 4px 12px rgba(8, 10, 14, 0.5), -4px -4px 12px rgba(40, 46, 62, 0.35);
+  --soft-shadow-inset: inset 3px 3px 6px rgba(8, 10, 14, 0.6), inset -3px -3px 6px rgba(40, 46, 62, 0.35);
+
+  --ios-blue:          #3B82F6;
+  --ios-blue-dark:     #1E3A8A;
+  --ios-blue-light:    #1E293B;
+
+  --ios-green:         #10B981;
+  --ios-green-light:   #064E3B;
+  --ios-red:           #EF4444;
+  --ios-red-light:     #7F1D1D;
+  --ios-orange:        #F59E0B;
+  --ios-orange-light:  #78350F;
+
+  --ios-bg:            var(--soft-bg);
+  --ios-surface:       var(--soft-surface);
+  --ios-surface-2:     var(--soft-surface-2);
+
+  --ios-separator:     #2D3546;
+  --ios-separator-2:   #222734;
+
+  --ios-label:         #F8FAFC;
+  --ios-label-2:       #E2E8F0;
+  --ios-secondary:     #94A3B8;
+  --ios-tertiary:      #64748B;
+
+  --ios-active-bg:     #2A3245;
+  --ios-active-text:   #93C5FD;
+  --ios-active-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+  --ios-shadow:        var(--soft-shadow-flat);
+  --ios-shadow-md:     12px 12px 30px rgba(8, 10, 14, 0.8);
+  --ios-shadow-blue:   0 8px 24px rgba(30, 58, 138, 0.35);
+
+}
+
+/* ─── Reset base ─────────────────────────────────────────────── */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -26,37 +151,204 @@
 }
 
 body {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-main);
-  color: #1a1a2e;
+  background-color: var(--ios-bg);
+  color: var(--ios-label);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Custom Scrollbar */
+/* ─── Scrollbar iOS / Soft UI ────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: var(--ios-tertiary);
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--ios-secondary);
 }
 
-/* Base Component Styles */
+/* ─── Componentes reutilizables Soft UI ──────────────────────── */
 @layer components {
-  .kpi-card {
-    @apply bg-white rounded-lg p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)];
+
+  /* Tarjeta Neumórfica Elevada Soft UI */
+  .ios-card {
+    border-radius: var(--ios-radius);
+    background-color: var(--ios-surface);
+    color: var(--ios-label);
+    box-shadow: var(--soft-shadow-flat);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+  .ios-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ios-shadow-md);
+  }
+
+  /* Tarjeta Glassmórfica Traslúcida */
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+    border-radius: var(--ios-radius);
+    background: var(--soft-surface-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 10px 30px rgba(31, 38, 135, 0.06);
+  }
+
+  /* Badges tipo píldora redondeada */
+  .ios-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wide transition-all;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+  .ios-badge-success {
+    background-color: var(--ios-green-light);
+    color: var(--ios-green);
+  }
+  .ios-badge-danger {
+    background-color: var(--ios-red-light);
+    color: var(--ios-red);
+  }
+  .ios-badge-warning {
+    background-color: var(--ios-orange-light);
+    color: var(--ios-orange);
+  }
+  .ios-badge-info {
+    background-color: var(--ios-blue-light);
+    color: var(--ios-blue);
+  }
+  .ios-badge-neutral {
+    background-color: var(--ios-surface-2);
+    color: var(--ios-secondary);
+  }
+
+  /* Input Soft UI con efecto hundido (inset shadow) */
+  .ios-input {
+    @apply w-full py-3 px-5 text-[13px] outline-none transition-all font-medium;
+    background-color: var(--ios-bg);
+    color: var(--ios-label);
+    border-radius: var(--ios-radius-sm);
+    box-shadow: var(--soft-shadow-inset);
+    border: 1px solid transparent;
+  }
+  .ios-input:focus {
+    border-color: var(--ios-blue);
+    background-color: var(--ios-surface);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  }
+  .ios-input::placeholder {
+    color: var(--ios-tertiary);
+  }
+
+  /* Botón primario Soft UI (Elevado / Gradiente) */
+  .ios-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 text-white text-[13px] font-bold px-6 py-3 transition-all active:scale-95 cursor-pointer;
+    background: linear-gradient(135deg, var(--ios-blue), var(--ios-blue-dark));
+    border-radius: var(--ios-radius-sm);
+    box-shadow: var(--ios-shadow-blue);
+    border: none;
+  }
+  .ios-btn-primary:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 28px rgba(37, 99, 235, 0.35);
+  }
+
+  /* Botón secundario Soft UI (Píldora Neumórfica) */
+  .ios-btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-[13px] font-bold px-5 py-2.5 transition-all active:scale-95 cursor-pointer;
+    color: var(--ios-blue);
+    background-color: var(--ios-surface);
+    border-radius: var(--ios-radius-sm);
+    box-shadow: var(--soft-shadow-sm);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+  }
+  .ios-btn-ghost:hover {
+    background-color: var(--ios-blue-light);
+    transform: translateY(-1px);
+  }
+
+  /* Tabla Soft UI con separadores flotantes */
+  .ios-table {
+    @apply w-full text-left;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .ios-table thead th {
+    @apply px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider;
+    background-color: var(--ios-surface-2);
+    color: var(--ios-secondary);
+    border-bottom: 1px solid var(--ios-separator);
+  }
+  .ios-table tbody tr {
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid var(--ios-separator-2);
+  }
+  .ios-table tbody tr:hover {
+    background-color: var(--ios-surface-2);
+  }
+  .ios-table tbody td {
+    @apply px-5 py-3.5 text-[13px];
+    color: var(--ios-label);
+  }
+
+  /* Selector / Select estilo cápsula Neumórfica */
+  .ios-select {
+    @apply py-2.5 px-5 text-[13px] font-semibold outline-none appearance-none cursor-pointer transition-all;
+    background-color: var(--ios-surface);
+    color: var(--ios-label);
+    border-radius: 9999px;
+    box-shadow: var(--soft-shadow-sm);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748B' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+  .ios-select:focus {
+    border-color: var(--ios-blue);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
   }
 }
 
+/* ─── Adaptación Global para Modo Oscuro y Modo Blanco y Negro ─── */
+html.dark .bg-white, 
+html.theme-bw .bg-white {
+  background-color: var(--ios-surface) !important;
+}
+
+html.dark .bg-slate-50, html.theme-bw .bg-slate-50,
+html.dark .bg-gray-50, html.theme-bw .bg-gray-50,
+html.dark .bg-slate-100, html.theme-bw .bg-slate-100 {
+  background-color: var(--ios-surface-2) !important;
+}
+
+html.dark .border-slate-100, html.theme-bw .border-slate-100,
+html.dark .border-slate-200, html.theme-bw .border-slate-200,
+html.dark .border-gray-200, html.theme-bw .border-gray-200,
+html.dark .border-gray-100, html.theme-bw .border-gray-100 {
+  border-color: var(--ios-separator) !important;
+}
+
+html.dark .text-\[\#1a1a2e\], html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-slate-700, html.dark .text-slate-600,
+html.theme-bw .text-\[\#1a1a2e\], html.theme-bw .text-slate-900, html.theme-bw .text-slate-800, html.theme-bw .text-slate-700, html.theme-bw .text-slate-600 {
+  color: var(--ios-label) !important;
+}
+
+html.dark .text-slate-500, html.dark .text-slate-400,
+html.theme-bw .text-slate-500, html.theme-bw .text-slate-400 {
+  color: var(--ios-secondary) !important;
+}
+
+html.dark .divide-slate-50 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.theme-bw .divide-slate-50 > :not([hidden]) ~ :not([hidden]),
+html.theme-bw .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ios-separator-2) !important;
+}

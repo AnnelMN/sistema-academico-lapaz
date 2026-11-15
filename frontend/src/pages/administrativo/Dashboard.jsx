@@ -1,123 +1,185 @@
-import React from 'react';
-import { UserPlus, Download, Bell, Key } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { UserPlus, Download, Bell, Key, Calendar, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { getCursos, getMaterias, getDocentes } from '../../services/academico.service';
+import { getUsuarios } from '../../services/usuarios.service';
 
 const AdminDashboard = () => {
+  const [cursos, setCursos] = useState([]);
+  const [materias, setMaterias] = useState([]);
+  const [docentes, setDocentes] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [cData, mData, dData, uData] = await Promise.all([
+          getCursos(),
+          getMaterias(),
+          getDocentes(),
+          getUsuarios()
+        ]);
+        setCursos(cData || []);
+        setMaterias(mData || []);
+        setDocentes(dData || []);
+        setUsuarios(uData || []);
+      } catch (err) {
+        console.error('Error cargando dashboard administrativo:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const totalEstudiantes = usuarios.filter(u => u.rol === 'ESTUDIANTE').length;
+  const totalDocentes = usuarios.filter(u => u.rol === 'PROFESOR').length;
+  const totalAdmin = usuarios.filter(u => u.rol === 'ADMINISTRATIVO').length;
+  const totalDirectores = usuarios.filter(u => u.rol === 'DIRECTOR').length;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <RefreshCw size={30} className="animate-spin" style={{ color: 'var(--ios-blue)' }} />
+        <p className="text-[13px] font-medium" style={{ color: 'var(--ios-secondary)' }}>
+          Cargando panel administrativo...
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      
-      {/* Page Header */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-[18px] font-bold text-[#1a1a2e]">Panel Administrativo</h2>
-          <p className="text-[11px] text-slate-400">Control de matrícula, usuarios y reportes institucionales</p>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+          Panel Administrativo
+        </h2>
+        <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
+          Control de estructura académica: cursos, materias, docentes y usuarios.
+        </p>
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 text-center">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Estudiantes</div>
-          <div className="text-[22px] font-bold text-[#1a1a2e]">487</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 text-center">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Profesores</div>
-          <div className="text-[22px] font-bold text-[#1a1a2e]">24</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 text-center">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Usuarios sist.</div>
-          <div className="text-[22px] font-bold text-[#1a1a2e]">31</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 text-center">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Pendientes</div>
-          <div className="text-[22px] font-bold text-[#ef4444]">12</div>
-        </div>
+        {[
+          { label: 'Cursos', value: cursos.length, color: 'var(--ios-blue)' },
+          { label: 'Materias', value: materias.length, color: 'var(--ios-green)' },
+          { label: 'Docentes', value: totalDocentes, color: 'var(--ios-label)' },
+          { label: 'Estudiantes', value: totalEstudiantes, color: 'var(--ios-red)' }
+        ].map((kpi, i) => (
+          <div key={i} className="ios-card p-5 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-wider mb-2"
+              style={{ color: 'var(--ios-secondary)' }}>
+              {kpi.label}
+            </div>
+            <div className="text-[28px] font-bold" style={{ color: kpi.color }}>
+              {kpi.value}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Left: Course Progress */}
-        <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-100">
-          <div className="text-[12px] font-bold text-[#1a1a2e] mb-4 uppercase tracking-tight">Estado de matrícula por curso</div>
-          <div className="space-y-3">
-            {[
-              { curso: '1ro A', total: 82, estado: 'Completo', color: '#16a34a' },
-              { curso: '2do A', total: 78, estado: 'Completo', color: '#16a34a' },
-              { curso: '3ro A', total: 84, estado: 'En proceso', color: '#f59e0b' },
-              { curso: '4to A', total: 80, estado: 'Completo', color: '#16a34a' },
-              { curso: '5to A', total: 76, estado: 'Completo', color: '#16a34a' },
-              { curso: '6to A', total: 87, estado: 'Pendiente', color: '#ef4444' },
-            ].map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                <div>
-                  <span className="text-[12px] font-bold text-[#1a1a2e] w-12 inline-block">{item.curso}</span>
-                  <span className="text-[10px] text-slate-400 ml-2">{item.total} estudiantes</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="ios-card p-5">
+          <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
+            Cursos registrados
+          </div>
+          <div className="space-y-2">
+            {cursos.length === 0 ? (
+              <p className="text-[12px] text-slate-500">
+                No hay cursos registrados.
+              </p>
+            ) : (
+              cursos.map(c => (
+                <div key={c.id} className="flex justify-between items-center py-2">
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: 'var(--ios-label)' }}>
+                      {c.nivel}° {c.paralelo}
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-600">Curso {c.nivel}</div>
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: item.color }}>{item.estado}</span>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="ios-card p-5">
+          <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
+            Materias registradas
+          </div>
+          <div className="space-y-2">
+            {materias.length === 0 ? (
+              <p className="text-[12px] text-slate-500">
+                No hay materias registradas.
+              </p>
+            ) : (
+              materias.map(m => (
+                <div key={m.id} className="flex justify-between items-center py-2">
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: 'var(--ios-label)' }}>
+                      {m.nombre}
+                    </div>
+                    <div className="text-[11px] text-slate-600">
+                      Nivel {m.nivel} · {m.cargaHoraria}h
+                    </div>
+                  </div>
+                  <div className="text-[12px] text-slate-600">{m.cargaHoraria}h</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="ios-card p-5">
+          <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
+            Usuarios por rol
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: 'Director', value: totalDirectores },
+              { label: 'Docentes', value: totalDocentes },
+              { label: 'Administrativos', value: totalAdmin },
+              { label: 'Estudiantes', value: totalEstudiantes }
+            ].map(u => (
+              <div key={u.label} className="flex justify-between items-center py-2">
+                <div className="text-[12px] font-medium" style={{ color: 'var(--ios-label)' }}>
+                  {u.label}
+                </div>
+                <div className="text-[13px] font-bold" style={{ color: 'var(--ios-blue)' }}>
+                  {u.value}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right: Tasks & Recent Activity */}
-        <div className="space-y-6">
-          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-100">
-            <div className="text-[12px] font-bold text-[#1a1a2e] mb-4 uppercase tracking-tight">Tareas críticas</div>
-            <div className="space-y-4">
-              <div className="flex gap-3">
-                <div className="w-1 h-8 bg-[#ef4444] rounded-full"></div>
-                <div>
-                  <div className="text-[11px] font-bold text-[#1a1a2e]">Completar matrícula 6to A</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">Vence en 2 días</div>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-1 h-8 bg-[#f59e0b] rounded-full"></div>
-                <div>
-                  <div className="text-[11px] font-bold text-[#1a1a2e]">Actualizar contactos 3ro A</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">Vence mañana</div>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-1 h-8 bg-[#4a90e2] rounded-full"></div>
-                <div>
-                  <div className="text-[11px] font-bold text-[#1a1a2e]">Generar reporte asistencia Marzo</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">Pendiente</div>
-                </div>
-              </div>
-            </div>
+        <div className="ios-card p-5">
+          <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
+            Acciones rápidas
           </div>
-
-          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-100">
-            <div className="text-[12px] font-bold text-[#1a1a2e] mb-4 uppercase tracking-tight">Actividad reciente</div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 py-1">
-                <UserPlus size={14} className="text-slate-400" />
-                <div className="flex-1">
-                  <div className="text-[11px] text-[#1a1a2e]"><span className="font-bold">Nuevo estudiante</span> matriculado en 2do A</div>
-                  <div className="text-[9px] text-slate-400">Hace 15 min</div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: 'var(--ios-bg)' }}>
+              <div>
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--ios-label)' }}>
+                  Registrar nuevo curso
                 </div>
+                <div className="text-[11px] text-slate-500">Define nivel y paralelo</div>
               </div>
-              <div className="flex items-center gap-3 py-1">
-                <Download size={14} className="text-slate-400" />
-                <div className="flex-1">
-                  <div className="text-[11px] text-[#1a1a2e]"><span className="font-bold">Reporte de notas</span> exportado por Director</div>
-                  <div className="text-[9px] text-slate-400">Hoy, 08:45</div>
+              <div className="text-[11px] text-blue-500 font-bold cursor-pointer">Ir a Cursos</div>
+            </div>
+            <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: 'var(--ios-bg)' }}>
+              <div>
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--ios-label)' }}>
+                  Registrar nueva materia
                 </div>
+                <div className="text-[11px] text-slate-500">Define nombre, carga y nivel</div>
               </div>
-              <div className="flex items-center gap-3 py-1">
-                <Key size={14} className="text-slate-400" />
-                <div className="flex-1">
-                  <div className="text-[11px] text-[#1a1a2e]"><span className="font-bold">Contraseña restablecida</span> — Prof. Lima</div>
-                  <div className="text-[9px] text-slate-400">Ayer, 11:30</div>
-                </div>
-              </div>
+              <div className="text-[11px] text-blue-500 font-bold cursor-pointer">Ir a Materias</div>
             </div>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 };

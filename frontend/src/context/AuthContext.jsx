@@ -1,6 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import authService from '../services/auth.service';
-import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -12,17 +11,21 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const userData = await authService.getMe();
-          setUser(userData);
-        } catch (err) {
-          console.error('Error fetching user on init:', err);
-          authService.logout();
-          setUser(null);
-        }
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        const userData = await authService.getMe();
+        setUser(userData);
+      } catch (err) {
+        console.error('Error restoring session:', err);
+        authService.logout();
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     initAuth();
@@ -31,14 +34,47 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      const data = await authService.login(email, password);
+      const data = await authService.login(email.trim().toLowerCase(), password);
+      if (data.requires2FA || data.requiresSetup2FA) return data;
       setUser(data.user);
       return data;
     } catch (err) {
       const message = err.response?.data?.error || 'Error al iniciar sesión';
       setError(message);
-      throw new Error(message);
+      throw new Error(message, { cause: err });
     }
+  };
+
+  const authenticate2FA = async (tempToken, code) => {
+    try {
+      setError(null);
+      const data = await authService.authenticate2FA(tempToken, code.trim());
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      const message = err.response?.data?.error || 'Código 2FA inválido';
+      setError(message);
+      throw new Error(message, { cause: err });
+    }
+  };
+
+  const activate2FA = async (tempToken, code) => {
+    try {
+      setError(null);
+      const data = await authService.activate2FA(tempToken, code.trim());
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      const message = err.response?.data?.error || 'Código 2FA inválido';
+      setError(message);
+      throw new Error(message, { cause: err });
+    }
+  };
+
+  const refreshUser = async () => {
+    const userData = await authService.getMe();
+    setUser(userData);
+    return userData;
   };
 
   const logout = () => {
@@ -47,7 +83,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        login,
+        authenticate2FA,
+        activate2FA,
+        refreshUser,
+        logout,
+      }}
+    >
       {!loading && children}
     </AuthContext.Provider>
   );

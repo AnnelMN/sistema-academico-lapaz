@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // MATERIAS
 const getMaterias = async (req, res) => {
@@ -55,6 +54,36 @@ const getCursos = async (req, res) => {
   }
 };
 
+const createCurso = async (req, res) => {
+  try {
+    const { nivel, paralelo } = req.body;
+
+    if (!nivel || !paralelo) {
+      return res.status(400).json({ error: 'Nivel y paralelo son requeridos' });
+    }
+
+    const existing = await prisma.curso.findFirst({
+      where: { nivel: parseInt(nivel), paralelo }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Ya existe ese curso' });
+    }
+
+    const curso = await prisma.curso.create({
+      data: {
+        nivel: parseInt(nivel),
+        paralelo
+      }
+    });
+
+    res.status(201).json(curso);
+  } catch (error) {
+    console.error('Error creating curso:', error);
+    res.status(500).json({ error: 'Server error creating curso' });
+  }
+};
+
 // DOCENTES
 const getDocentes = async (req, res) => {
   try {
@@ -79,9 +108,146 @@ const getDocentes = async (req, res) => {
   }
 };
 
+// DASHBOARD DIRECTOR
+const getDirectorDashboard = async (req, res) => {
+  try {
+    const config = await prisma.configuracion.findFirst();
+    const gestion = config?.gestionActual || new Date().getFullYear();
+    const trimestre = config?.trimestreActivo || 1;
+    const umbral = config?.umbralAprobacion || 51;
+
+    const [totalEstudiantes, cursos, notas, asistencias, predicciones] = await Promise.all([
+      prisma.estudiante.count({ where: { usuario: { activo: true } } }),
+      prisma.curso.findMany({
+        orderBy: [{ nivel: 'asc' }, { paralelo: 'asc' }],
+      }),
+      prisma.nota.findMany({
+        where: { materiaProgramada: { gestion } },
+        select: {
+          estudianteId: true,
+          total: true,
+          estudiante: {
+            select: {
+              cursoId: true,
+              curso: { select: { nivel: true, paralelo: true } },
+            },
+          },
+        },
+      }),
+      prisma.asistencia.findMany({ select: { estado: true } }),
+      prisma.prediccionRiesgo.findMany({
+        orderBy: { generadoEn: 'desc' },
+        select: {
+          estudianteId: true,
+          nivelRiesgo: true,
+          probabilidad: true,
+          promedioNotas: true,
+          porcentajeAsistencia: true,
+          estudiante: {
+            select: {
+              usuario: { select: { nombre: true, activo: true } },
+              curso: { select: { nivel: true, paralelo: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const acumuladoPorEstudiante = new Map();
+    const acumuladoPorCurso = new Map();
+
+    for (const nota of notas) {
+      const actual = acumuladoPorEstudiante.get(nota.estudianteId) || { suma: 0, cantidad: 0 };
+      actual.suma += nota.total;
+      actual.cantidad += 1;
+      acumuladoPorEstudiante.set(nota.estudianteId, actual);
+
+      const studentNote = { suma: 0, cantidad: 0 };
+      const cursoActual = acumuladoPorCurso.get(nota.estudiante.cursoId) || new Map();
+      const cursoEstudiante = cursoActual.get(nota.estudianteId) || studentNote;
+      cursoEstudiante.suma += nota.total;
+      cursoEstudiante.cantidad += 1;
+      cursoActual.set(nota.estudianteId, cursoEstudiante);
+      acumuladoPorCurso.set(nota.estudiante.cursoId, cursoActual);
+    }
+
+    const aprobados = [...acumuladoPorEstudiante.values()].filter(
+      ({ suma, cantidad }) => suma / cantidad >= umbral
+    ).length;
+    const estudiantesConNotas = acumuladoPorEstudiante.size;
+    const tasaAprobacion = estudiantesConNotas
+      ? Math.round((aprobados / estudiantesConNotas) * 100)
+      : 0;
+
+    const asistenciasValidas = asistencias.filter(
+      (asistencia) => asistencia.estado === 'PRESENTE' || asistencia.estado === 'JUSTIFICADO'
+    ).length;
+    const asistenciaMedia = asistencias.length
+      ? Math.round((asistenciasValidas / asistencias.length) * 100)
+      : 0;
+
+    const latestPredictions = new Map();
+    for (const prediccion of predicciones) {
+      if (prediccion.estudiante.usuario.activo && !latestPredictions.has(prediccion.estudianteId)) {
+        latestPredictions.set(prediccion.estudianteId, prediccion);
+      }
+    }
+
+    const latest = [...latestPredictions.values()];
+    const riesgoAlto = latest.filter(
+      (prediccion) => prediccion.nivelRiesgo === 'RIESGO_ALTO'
+    ).length;
+
+    const estudiantesRiesgo = latest
+      .filter((prediccion) => prediccion.nivelRiesgo !== 'SIN_RIESGO')
+      .slice(0, 6)
+      .map((prediccion) => {
+        const curso = prediccion.estudiante.curso;
+        const nivel = prediccion.nivelRiesgo;
+        return {
+          id: prediccion.estudianteId,
+          name: prediccion.estudiante.usuario.nombre,
+          info: `${curso.nivel}° ${curso.paralelo} · Promedio ${prediccion.promedioNotas.toFixed(1)} · Asistencia ${Math.round(prediccion.porcentajeAsistencia)}%`,
+          risk: nivel === 'RIESGO_ALTO' ? 'Alto' : 'Medio',
+          nivelRiesgo: nivel,
+        };
+      });
+
+    const cursosDashboard = cursos
+      .filter((curso) => acumuladoPorCurso.has(curso.id))
+      .map((curso) => {
+      const estudiantesCurso = acumuladoPorCurso.get(curso.id);
+      const estudiantes = estudiantesCurso ? [...estudiantesCurso.values()] : [];
+      const aprobadosCurso = estudiantes.filter(
+        ({ suma, cantidad }) => suma / cantidad >= umbral
+      ).length;
+      const val = estudiantes.length
+        ? Math.round((aprobadosCurso / estudiantes.length) * 100)
+        : 0;
+      return { id: curso.id, label: `${curso.nivel}° ${curso.paralelo}`, val };
+    });
+
+    res.json({
+      gestion,
+      trimestreActivo: trimestre,
+      totalEstudiantes,
+      tasaAprobacion,
+      asistenciaMedia,
+      riesgoAlto,
+      cursos: cursosDashboard,
+      estudiantesRiesgo,
+    });
+  } catch (error) {
+    console.error('Error fetching director dashboard:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 module.exports = {
   getMaterias,
   createMateria,
   getCursos,
-  getDocentes
+  createCurso,
+  getDocentes,
+  getDirectorDashboard,
 };

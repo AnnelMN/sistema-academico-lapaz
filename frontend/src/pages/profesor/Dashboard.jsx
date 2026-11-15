@@ -20,25 +20,25 @@ const ProfesorDashboard = () => {
     {
       title: 'Mi Panel',
       items: [
-        { label: 'Dashboard', path: '/profesor', dotColor: 'bg-[#60a5fa]', exact: true },
-        { label: 'Registrar notas', path: '/profesor/notas', dotColor: 'bg-[#fb923c]' },
-        { label: 'Asistencia', path: '/profesor/asistencia', dotColor: 'bg-[#34d399]' },
+        { label: 'Dashboard',      path: '/profesor',             dotHex: '#007AFF', exact: true },
+        { label: 'Registrar notas',path: '/profesor/notas',        dotHex: '#FF9500' },
+        { label: 'Asistencia',     path: '/profesor/asistencia',  dotHex: '#34C759' },
       ]
     },
     {
       title: 'Consultas',
       items: [
-        { label: 'Predicción IA', path: '/profesor/predicciones', dotColor: 'bg-[#a78bfa]' },
-        { label: 'Mi horario', path: '/profesor/horario', dotColor: 'bg-[#fbbf24]' },
-        { label: 'Reportes', path: '/profesor/reportes', dotColor: 'bg-[#9ca3af]' },
+        { label: 'Predicción IA',  path: '/profesor/predicciones', dotHex: '#AF52DE' },
+        { label: 'Mi horario',     path: '/profesor/horario',       dotHex: '#FF9500' },
+        { label: 'Reportes',       path: '/profesor/reportes',      dotHex: '#8E8E93' },
       ]
     }
   ];
 
   const headerRightContent = (
     <div className="flex gap-2">
-      <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm hover:bg-slate-50 text-slate-600 font-semibold text-[11px] flex items-center">
-        <Download size={14} className="mr-2" /> Exportar PDF
+      <button className="ios-btn-ghost text-[12px]">
+        <Download size={14} /> Exportar PDF
       </button>
     </div>
   );
@@ -52,7 +52,6 @@ const ProfesorDashboard = () => {
   return (
     <SidebarLayout
       menuGroups={menuGroups}
-      sidebarColor="bg-[#8B0000]"
       headerTitle="Registro de asistencia"
       headerSubtitle="Prof. Laura Rojas · 3ro A · Matemáticas · 08:00"
       headerRightContent={headerRightContent}
@@ -61,93 +60,105 @@ const ProfesorDashboard = () => {
         
         {/* KPI Cards for Attendance */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100 text-center">
-            <div className="text-[22px] font-bold text-[#16a34a]">4</div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Presentes</div>
+          <div className="ios-card p-4 text-center">
+            <div className="text-[26px] font-bold" style={{ color: 'var(--ios-green)' }}>4</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--ios-secondary)' }}>Presentes</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100 text-center">
-            <div className="text-[22px] font-bold text-[#ef4444]">1</div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Ausentes</div>
+          <div className="ios-card p-4 text-center">
+            <div className="text-[26px] font-bold" style={{ color: 'var(--ios-red)' }}>1</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--ios-secondary)' }}>Ausentes</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100 text-center">
-            <div className="text-[22px] font-bold text-[#f59e0b]">1</div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Justificados</div>
+          <div className="ios-card p-4 text-center">
+            <div className="text-[26px] font-bold" style={{ color: 'var(--ios-orange)' }}>1</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--ios-secondary)' }}>Justificados</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100 text-center">
-            <div className="text-[22px] font-bold text-[#9ca3af]">0</div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sin marcar</div>
+          <div className="ios-card p-4 text-center">
+            <div className="text-[26px] font-bold" style={{ color: 'var(--ios-tertiary)' }}>0</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--ios-secondary)' }}>Sin marcar</div>
           </div>
         </div>
 
         {/* Controls Section */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
-          <select className="border border-slate-200 rounded-md px-3 py-1.5 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-red-500 min-w-[200px]">
+        <div className="ios-card p-4 flex flex-wrap gap-3 items-center">
+          <select className="ios-select min-w-[200px]">
             <option>3ro A — Matemáticas</option>
           </select>
-          <select className="border border-slate-200 rounded-md px-3 py-1.5 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-red-500">
+          <select className="ios-select">
             <option>Lunes 22/03</option>
           </select>
-          <button className="bg-[#4a90e2] text-white text-[11px] font-bold px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+          <button className="ios-btn-primary text-[12px] py-2.5">
             Guardar asistencia
           </button>
-          <button className="bg-white border border-slate-200 text-slate-600 text-[11px] font-bold px-4 py-2 rounded-md hover:bg-slate-50 transition-colors">
+          <button className="ios-btn-ghost text-[12px]">
             Marcar todos presente
           </button>
         </div>
 
         {/* Attendance Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left">
+        <div className="ios-card overflow-hidden">
+          <table className="ios-table">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estudiante</th>
-                <th className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Estado</th>
-                <th className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Justificación</th>
-                <th className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Asistencia %</th>
-                <th className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Faltas</th>
+              <tr>
+                <th>Estudiante</th>
+                <th className="text-center">Estado</th>
+                <th>Justificación</th>
+                <th>Asistencia %</th>
+                <th>Faltas</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {estudiantes.map((est) => (
-                <tr key={est.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3 text-[12px] font-medium text-slate-700">{est.nombre}</td>
-                  <td className="px-4 py-3">
+                <tr key={est.id}>
+                  <td className="font-medium">{est.nombre}</td>
+                  <td>
                     <div className="flex justify-center">
-                      <div className="inline-flex rounded-md overflow-hidden border border-slate-200">
-                        <button 
+                      <div className="inline-flex rounded-xl overflow-hidden" style={{ border: '1px solid var(--ios-separator)' }}>
+                        <button
                           onClick={() => handleEstadoChange(est.id, 'P')}
-                          className={`w-7 h-7 flex items-center justify-center text-[11px] font-bold border-r border-slate-200 ${
-                            est.estado === 'P' ? 'bg-[#d1fae5] text-[#065f46] border-[#34d399]' : 'bg-white text-slate-400'
-                          }`}
+                          className="w-8 h-8 flex items-center justify-center text-[11px] font-bold transition-all"
+                          style={est.estado === 'P'
+                            ? { backgroundColor: 'var(--ios-green-light)', color: '#1A7A38' }
+                            : { backgroundColor: 'white', color: 'var(--ios-tertiary)' }
+                          }
                         >P</button>
-                        <button 
+                        <button
                           onClick={() => handleEstadoChange(est.id, 'A')}
-                          className={`w-7 h-7 flex items-center justify-center text-[11px] font-bold border-r border-slate-200 ${
-                            est.estado === 'A' ? 'bg-[#fee2e2] text-[#b91c1c] border-[#f87171]' : 'bg-white text-slate-400'
-                          }`}
+                          className="w-8 h-8 flex items-center justify-center text-[11px] font-bold transition-all"
+                          style={{
+                            borderLeft: '1px solid var(--ios-separator)',
+                            borderRight: '1px solid var(--ios-separator)',
+                            ...(est.estado === 'A'
+                              ? { backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }
+                              : { backgroundColor: 'white', color: 'var(--ios-tertiary)' })
+                          }}
                         >A</button>
-                        <button 
+                        <button
                           onClick={() => handleEstadoChange(est.id, 'J')}
-                          className={`w-7 h-7 flex items-center justify-center text-[11px] font-bold ${
-                            est.estado === 'J' ? 'bg-[#fef3c7] text-[#92400e] border-[#fbbf24]' : 'bg-white text-slate-400'
-                          }`}
+                          className="w-8 h-8 flex items-center justify-center text-[11px] font-bold transition-all"
+                          style={est.estado === 'J'
+                            ? { backgroundColor: 'var(--ios-orange-light)', color: '#A05800' }
+                            : { backgroundColor: 'white', color: 'var(--ios-tertiary)' }
+                          }
                         >J</button>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[11px] text-slate-400 italic">Motivo...</td>
-                  <td className="px-4 py-3">
+                  <td className="italic" style={{ color: 'var(--ios-tertiary)' }}>Motivo...</td>
+                  <td>
                     <div className="flex flex-col w-24">
-                      <div className="text-[11px] font-bold text-slate-600 mb-1">{est.asistencia}%</div>
-                      <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${est.asistencia < 80 ? 'bg-red-500' : 'bg-green-500'}`} 
-                          style={{ width: `${est.asistencia}%` }}
-                        ></div>
+                      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--ios-label)' }}>{est.asistencia}%</div>
+                      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--ios-separator)' }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${est.asistencia}%`,
+                            backgroundColor: est.asistencia < 80 ? 'var(--ios-red)' : 'var(--ios-green)'
+                          }}
+                        />
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[12px] text-slate-600">{est.faltas}</td>
+                  <td className="font-medium">{est.faltas}</td>
                 </tr>
               ))}
             </tbody>
@@ -155,10 +166,13 @@ const ProfesorDashboard = () => {
         </div>
 
         {/* IA Alert Banner */}
-        <div className="bg-[#fffbeb] border border-[#fcd34d] p-3 rounded-lg flex items-center gap-3">
-          <AlertTriangle size={18} className="text-[#92400e]" />
-          <div className="text-[11px] text-[#92400e]">
-            <span className="font-bold uppercase tracking-tight mr-2">Aviso de riesgo:</span>
+        <div
+          className="flex items-center gap-3 p-4 rounded-2xl"
+          style={{ backgroundColor: 'var(--ios-orange-light)' }}
+        >
+          <AlertTriangle size={18} style={{ color: 'var(--ios-orange)', flexShrink: 0 }} />
+          <div className="text-[12px]" style={{ color: '#A05800' }}>
+            <span className="font-semibold mr-1">Aviso de riesgo:</span>
             El sistema ha detectado 2 estudiantes con tendencia de inasistencia crítica. Se sugiere revisión pedagógica.
           </div>
         </div>

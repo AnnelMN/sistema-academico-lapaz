@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, BookOpen, Calendar, Sparkles, Settings } from 'lucide-react';
 import SidebarLayout from '../../components/layout/SidebarLayout';
 
 const DirectorLayout = () => {
@@ -10,34 +9,28 @@ const DirectorLayout = () => {
     {
       title: 'General',
       items: [
-        { label: 'Dashboard', path: '/director', dotColor: 'bg-[#60a5fa]', exact: true },
-        { label: 'Horarios', path: '/director/horarios', dotColor: 'bg-[#fbbf24]' },
+        { label: 'Dashboard',    path: '/director',             dotHex: '#007AFF', exact: true },
+        { label: 'Horarios',     path: '/director/horarios',    dotHex: '#FF9500' },
+        { label: 'Asistencia',   path: '/director/asistencia',  dotHex: '#34C759' },
+        { label: 'Notas',        path: '/director/notas',       dotHex: '#FF9500' },
+        { label: 'Predicción IA',path: '/director/predicciones', dotHex: '#AF52DE' },
+        { label: 'Reportes',     path: '/director/reportes',    dotHex: '#8E8E93' },
       ]
     },
     {
-      title: 'Académico',
+      title: 'Administración',
       items: [
-        { label: 'Asistencia', path: '/director/asistencia', dotColor: 'bg-[#34d399]' },
-        { label: 'Notas', path: '/director/notas', dotColor: 'bg-[#fb923c]' },
-        { label: 'Predicción IA', path: '/director/predicciones', dotColor: 'bg-[#a78bfa]' },
-      ]
-    },
-    {
-      title: 'Admin',
-      items: [
-        { label: 'Usuarios',       path: '/director/usuarios',       dotColor: 'bg-[#2dd4bf]' },
-        { label: 'Notificaciones', path: '/director/notificaciones', dotColor: 'bg-[#fbbf24]' },
-        { label: 'Reportes',       path: '/director/reportes',       dotColor: 'bg-[#9ca3af]' },
+        { label: 'Usuarios',       path: '/director/usuarios',       dotHex: '#007AFF' },
+        { label: 'Notificaciones', path: '/director/notificaciones',  dotHex: '#FF9500' },
       ]
     }
   ];
 
-
   const headerRightContent = (
-    <select 
+    <select
       value={trimestre}
       onChange={(e) => setTrimestre(e.target.value)}
-      className="bg-white border border-slate-300 text-slate-700 py-2 px-4 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+      className="ios-select"
     >
       <option>1er Trimestre 2026</option>
       <option>2do Trimestre 2026</option>
@@ -48,7 +41,6 @@ const DirectorLayout = () => {
   return (
     <SidebarLayout
       menuGroups={menuGroups}
-      sidebarColor="bg-[#1e3a5f]"
       headerTitle="Panel institucional"
       headerSubtitle="Gestión escolar 2026 · Turno mañana"
       headerRightContent={headerRightContent}

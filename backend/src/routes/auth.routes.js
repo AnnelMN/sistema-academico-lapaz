@@ -1,16 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
+const twoFactorController = require('../controllers/twoFactor.controller');
 const authMiddleware = require('../middleware/authMiddleware');
 
-// @route   POST /api/auth/login
-// @desc    Authenticate user & get token
-// @access  Public
 router.post('/login', authController.login);
-
-// @route   GET /api/auth/me
-// @desc    Get current logged in user
-// @access  Private
+router.post('/2fa/authenticate', authController.authenticate);
+router.post('/2fa/setup-authenticate', authController.setupAuthenticate);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 router.get('/me', authMiddleware(), authController.getMe);
+router.post('/2fa/setup', authMiddleware(), twoFactorController.setup);
+router.post('/2fa/verify-setup', authMiddleware(), twoFactorController.verifySetup);
+router.post('/2fa/disable', authMiddleware(), twoFactorController.disable);
 
 module.exports = router;

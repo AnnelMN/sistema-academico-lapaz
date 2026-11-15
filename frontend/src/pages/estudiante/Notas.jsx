@@ -2,94 +2,98 @@ import React, { useState, useEffect } from 'react';
 import { Download, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import estudianteService from '../../services/estudiante.service';
 
+const getStatusInfo = (total) => {
+  if (total >= 51) return { label: 'Aprobado', cls: 'ios-badge ios-badge-success' };
+  if (total >= 40) return { label: 'Atención', cls: 'ios-badge ios-badge-warning' };
+  return { label: 'En riesgo', cls: 'ios-badge ios-badge-danger' };
+};
+
 const Notas = () => {
   const [trimestre, setTrimestre] = useState(1);
-  const [notas, setNotas] = useState([]);
+  const [notas, setNotas]         = useState([]);
   const [prediccion, setPrediccion] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
 
-  useEffect(() => {
-    cargarDatos();
-  }, [trimestre]);
+  useEffect(() => { cargarDatos(); }, [trimestre]);
 
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [notasData, prediccionData] = await Promise.all([
+      const [notasData, predData] = await Promise.all([
         estudianteService.getMisNotas(trimestre),
-        estudianteService.getMiPrediccion()
+        estudianteService.getMiPrediccion(),
       ]);
       setNotas(notasData);
-      setPrediccion(prediccionData);
-    } catch (error) {
-      console.error('Error cargando notas y prediccion:', error);
+      setPrediccion(predData);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusInfo = (notaTotal) => {
-    if (notaTotal >= 51) return { label: 'Aprobado', bg: 'bg-green-100', text: 'text-green-700' };
-    if (notaTotal >= 40) return { label: 'Atención', bg: 'bg-amber-100', text: 'text-amber-700' };
-    return { label: 'Riesgo', bg: 'bg-red-100', text: 'text-red-700' };
-  };
-
-  const handleImprimir = () => {
-    window.print();
-  };
-
   if (loading) {
-    return <div className="text-center p-8 text-slate-500">Cargando información académica...</div>;
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-[14px]" style={{ color: 'var(--ios-secondary)' }}>
+          Cargando información académica...
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5 print:space-y-3">
-      
-      {/* Header con selectores (no visible en print) */}
+
+      {/* Header */}
       <div className="flex justify-between items-center print:hidden">
-        <h2 className="text-[16px] font-bold text-[#1a1a2e]">Historial de Notas</h2>
+        <div>
+          <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+            Historial de Notas
+          </h2>
+          <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
+            Gestión 2026
+          </p>
+        </div>
         <div className="flex gap-3">
-          <select 
+          <select
             value={trimestre}
             onChange={(e) => setTrimestre(parseInt(e.target.value))}
-            className="border border-slate-200 rounded-md px-3 py-1.5 text-[12px] outline-none focus:ring-1 focus:ring-[#1a4731]"
+            className="ios-select"
           >
             <option value={1}>1er Trimestre</option>
             <option value={2}>2do Trimestre</option>
             <option value={3}>3er Trimestre</option>
           </select>
-          <button 
-            onClick={handleImprimir}
-            className="flex items-center gap-2 bg-[#1a4731] hover:bg-[#123624] text-white px-4 py-1.5 rounded-md text-[12px] font-bold transition-colors"
-          >
+          <button onClick={() => window.print()} className="ios-btn-ghost text-[13px]">
             <Download size={14} /> Exportar PDF
           </button>
         </div>
       </div>
 
-      {/* Título solo visible en print */}
+      {/* Print header */}
       <div className="hidden print:block text-center mb-6">
         <h1 className="text-xl font-bold">Boletín Oficial de Calificaciones</h1>
         <p className="text-sm">Gestión 2026 - Trimestre {trimestre}</p>
       </div>
 
-      {/* Tabla de notas */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden print:shadow-none print:border-black">
-        <table className="w-full text-left">
+      {/* Tabla iOS */}
+      <div className="ios-card overflow-hidden print:shadow-none print:border print:border-gray-300">
+        <table className="ios-table">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-100 print:bg-gray-200 print:border-black">
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider print:text-black">Materia</th>
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center print:text-black">Ser (15)</th>
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center print:text-black">Saber (35)</th>
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center print:text-black">Hacer (50)</th>
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center print:text-black">Total (100)</th>
-              <th className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center print:text-black">Estado</th>
+            <tr>
+              <th>Materia</th>
+              <th className="text-center">Ser (15)</th>
+              <th className="text-center">Saber (35)</th>
+              <th className="text-center">Hacer (50)</th>
+              <th className="text-center font-bold">Total (100)</th>
+              <th className="text-center">Estado</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50 print:divide-black">
+          <tbody>
             {notas.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-5 py-8 text-center text-slate-500 text-[12px]">
+                <td colSpan={6} className="text-center py-10" style={{ color: 'var(--ios-secondary)' }}>
                   No hay notas registradas para este trimestre.
                 </td>
               </tr>
@@ -97,18 +101,16 @@ const Notas = () => {
               notas.map((n) => {
                 const status = getStatusInfo(n.total);
                 return (
-                  <tr key={n.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3 text-[12px] font-semibold text-slate-700 print:text-black">
-                      {n.materiaProgramada.materia.nombre}
+                  <tr key={n.id}>
+                    <td className="font-semibold">{n.materiaProgramada.materia.nombre}</td>
+                    <td className="text-center">{n.ser}</td>
+                    <td className="text-center">{n.saber}</td>
+                    <td className="text-center">{n.hacer}</td>
+                    <td className="text-center font-bold text-[15px]" style={{ color: 'var(--ios-label)' }}>
+                      {n.total}
                     </td>
-                    <td className="px-5 py-3 text-[12px] text-center text-slate-600 print:text-black">{n.ser}</td>
-                    <td className="px-5 py-3 text-[12px] text-center text-slate-600 print:text-black">{n.saber}</td>
-                    <td className="px-5 py-3 text-[12px] text-center text-slate-600 print:text-black">{n.hacer}</td>
-                    <td className="px-5 py-3 text-[13px] font-bold text-center text-[#1a1a2e] print:text-black">{n.total}</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${status.bg} ${status.text} print:bg-transparent print:text-black print:border print:border-black`}>
-                        {status.label}
-                      </span>
+                    <td className="text-center">
+                      <span className={status.cls}>{status.label}</span>
                     </td>
                   </tr>
                 );
@@ -118,34 +120,45 @@ const Notas = () => {
         </table>
       </div>
 
-      {/* Predicción IA - Al final */}
+      {/* Bloque IA */}
       {prediccion && prediccion.nivelRiesgo !== 'SIN_EVALUAR' && (
-        <div className="mt-6 bg-slate-50 rounded-lg p-5 border border-slate-200 print:hidden">
-          <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-full ${
-              prediccion.nivelRiesgo === 'RIESGO_ALTO' ? 'bg-red-100 text-red-600' :
-              prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? 'bg-amber-100 text-amber-600' :
-              'bg-green-100 text-green-600'
-            }`}>
-              {prediccion.nivelRiesgo === 'RIESGO_ALTO' ? <AlertTriangle size={24} /> :
-               prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? <Info size={24} /> :
-               <CheckCircle size={24} />}
-            </div>
-            <div>
-              <h3 className="text-[14px] font-bold text-[#1a1a2e] mb-1">Análisis Predictivo de Rendimiento</h3>
-              <p className="text-[12px] text-slate-600">
-                Basado en tu historial académico y asistencia, el modelo de IA estima que tu nivel actual es de 
-                <strong className={`ml-1 ${
-                  prediccion.nivelRiesgo === 'RIESGO_ALTO' ? 'text-red-600' :
-                  prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? 'text-amber-600' :
-                  'text-green-600'
-                }`}>
-                  {prediccion.nivelRiesgo.replace('_', ' ')}
-                </strong>.
-              </p>
-              <div className="mt-2 text-[11px] text-slate-400">
-                Probabilidad estimada de dificultades: {(prediccion.probabilidad * 100).toFixed(1)}%
-              </div>
+        <div
+          className="ios-card p-5 flex items-start gap-4 print:hidden"
+        >
+          <div
+            className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{
+              backgroundColor:
+                prediccion.nivelRiesgo === 'RIESGO_ALTO' ? 'var(--ios-red-light)' :
+                prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? 'var(--ios-orange-light)' :
+                'var(--ios-green-light)'
+            }}
+          >
+            {prediccion.nivelRiesgo === 'RIESGO_ALTO' ? (
+              <AlertTriangle size={20} style={{ color: 'var(--ios-red)' }} />
+            ) : prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? (
+              <Info size={20} style={{ color: 'var(--ios-orange)' }} />
+            ) : (
+              <CheckCircle size={20} style={{ color: 'var(--ios-green)' }} />
+            )}
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold mb-1" style={{ color: 'var(--ios-label)' }}>
+              Análisis Predictivo de Rendimiento
+            </h3>
+            <p className="text-[12px]" style={{ color: 'var(--ios-secondary)' }}>
+              Basado en tu historial académico y asistencia, el modelo de IA estima que tu nivel actual es de{' '}
+              <strong style={{
+                color:
+                  prediccion.nivelRiesgo === 'RIESGO_ALTO' ? 'var(--ios-red)' :
+                  prediccion.nivelRiesgo === 'RIESGO_MEDIO' ? 'var(--ios-orange)' :
+                  'var(--ios-green)'
+              }}>
+                {prediccion.nivelRiesgo.replace('_', ' ')}
+              </strong>.
+            </p>
+            <div className="mt-1.5 text-[11px]" style={{ color: 'var(--ios-tertiary)' }}>
+              Probabilidad estimada de dificultades: {(prediccion.probabilidad * 100).toFixed(1)}%
             </div>
           </div>
         </div>

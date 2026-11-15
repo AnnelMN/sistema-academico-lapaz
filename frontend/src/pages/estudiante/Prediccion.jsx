@@ -2,173 +2,226 @@ import React, { useState, useEffect } from 'react';
 import { BrainCircuit, AlertTriangle, Info, CheckCircle, Activity, BookOpen } from 'lucide-react';
 import estudianteService from '../../services/estudiante.service';
 
+const riesgoConfig = {
+  RIESGO_ALTO: {
+    iconBg: 'var(--ios-red-light)',
+    iconColor: 'var(--ios-red)',
+    icon: AlertTriangle,
+    titulo: 'Riesgo Alto',
+    color: 'var(--ios-red)',
+    cardBg: 'var(--ios-red-light)',
+    mensaje: 'El modelo indica una alta probabilidad de reprobación. Es urgente tomar medidas para mejorar tus notas y asistencia.',
+    dotColor: 'var(--ios-red)',
+  },
+  RIESGO_MEDIO: {
+    iconBg: 'var(--ios-orange-light)',
+    iconColor: 'var(--ios-orange)',
+    icon: Info,
+    titulo: 'Riesgo Medio',
+    color: 'var(--ios-orange)',
+    cardBg: 'var(--ios-orange-light)',
+    mensaje: 'Presta atención a tu rendimiento. Estás en el límite y podrías reprobar si no mantienes la constancia.',
+    dotColor: 'var(--ios-orange)',
+  },
+  SIN_RIESGO: {
+    iconBg: 'var(--ios-green-light)',
+    iconColor: 'var(--ios-green)',
+    icon: CheckCircle,
+    titulo: 'Sin Riesgo',
+    color: 'var(--ios-green)',
+    cardBg: 'var(--ios-green-light)',
+    mensaje: '¡Excelente trabajo! Continúa con este nivel de dedicación.',
+    dotColor: 'var(--ios-green)',
+  },
+  SIN_EVALUAR: {
+    iconBg: 'var(--ios-bg)',
+    iconColor: 'var(--ios-tertiary)',
+    icon: BrainCircuit,
+    titulo: 'Aún no evaluado',
+    color: 'var(--ios-secondary)',
+    cardBg: 'var(--ios-bg)',
+    mensaje: 'El modelo no tiene suficientes datos aún para generar una predicción en este trimestre.',
+    dotColor: 'var(--ios-tertiary)',
+  },
+};
+
+const recomendaciones = {
+  RIESGO_ALTO: [
+    'Habla con tus profesores para identificar las áreas exactas donde necesitas reforzar.',
+    'No faltes a más clases; la inasistencia es un factor crítico en el modelo predictivo.',
+    'Se enviará una notificación a tus tutores para buscar apoyo en conjunto.',
+  ],
+  RIESGO_MEDIO: [
+    'Organiza un horario de estudio extra en casa.',
+    'Si tienes dudas, consulta al profesor durante la clase.',
+  ],
+  SIN_RIESGO: [
+    'Sigue participando activamente en todas las materias.',
+    'Si tienes compañeros con dificultades, considera apoyarlos en grupos de estudio.',
+  ],
+};
+
 const Prediccion = () => {
   const [prediccion, setPrediccion] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
 
-  useEffect(() => {
-    cargarPrediccion();
-  }, []);
+  useEffect(() => { cargarPrediccion(); }, []);
 
   const cargarPrediccion = async () => {
     try {
-      const data = await estudianteService.getMiPrediccion();
-      setPrediccion(data);
-    } catch (error) {
-      console.error('Error cargando predicción:', error);
+      setPrediccion(await estudianteService.getMiPrediccion());
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) {
-    return <div className="text-center p-8 text-slate-500">Analizando datos académicos...</div>;
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-[14px]" style={{ color: 'var(--ios-secondary)' }}>Analizando datos académicos...</div>
+      </div>
+    );
   }
 
-  const sinEvaluar = !prediccion || prediccion.nivelRiesgo === 'SIN_EVALUAR';
-
-  const riesgoConfig = {
-    RIESGO_ALTO: {
-      color: 'text-red-600',
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      icon: <AlertTriangle size={32} className="text-red-500" />,
-      titulo: 'Riesgo Alto',
-      mensaje: 'El modelo indica una alta probabilidad de reprobación. Es urgente tomar medidas para mejorar tus notas y asistencia.'
-    },
-    RIESGO_MEDIO: {
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      icon: <Info size={32} className="text-amber-500" />,
-      titulo: 'Riesgo Medio',
-      mensaje: 'Presta atención a tu rendimiento. Estás en el límite y podrías reprobar si no mantienes la constancia.'
-    },
-    SIN_RIESGO: {
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      icon: <CheckCircle size={32} className="text-green-500" />,
-      titulo: 'Sin Riesgo',
-      mensaje: '¡Excelente trabajo! Continúa con este nivel de dedicación.'
-    },
-    SIN_EVALUAR: {
-      color: 'text-slate-600',
-      bg: 'bg-slate-50',
-      border: 'border-slate-200',
-      icon: <BrainCircuit size={32} className="text-slate-400" />,
-      titulo: 'Aún no evaluado',
-      mensaje: 'El modelo no tiene suficientes datos aún para generar una predicción en este trimestre.'
-    }
-  };
-
-  const currentConfig = riesgoConfig[prediccion?.nivelRiesgo || 'SIN_EVALUAR'];
+  const nivel = prediccion?.nivelRiesgo || 'SIN_EVALUAR';
+  const cfg = riesgoConfig[nivel] || riesgoConfig.SIN_EVALUAR;
+  const Icon = cfg.icon;
+  const sinEvaluar = !prediccion || nivel === 'SIN_EVALUAR';
+  const recoms = recomendaciones[nivel] || [];
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      
+    <div className="space-y-5 max-w-4xl">
+
       <div>
-        <h2 className="text-[16px] font-bold text-[#1a1a2e]">Mi Predicción de Rendimiento</h2>
-        <p className="text-[11px] text-slate-500">
-          Análisis predictivo basado en Machine Learning utilizando tu historial y asistencia.
+        <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+          Mi Predicción de Rendimiento
+        </h2>
+        <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
+          Análisis predictivo basado en Machine Learning con tu historial y asistencia.
         </p>
       </div>
 
-      {/* Main Alert Card */}
-      <div className={`rounded-xl p-6 border ${currentConfig.border} ${currentConfig.bg} flex flex-col md:flex-row gap-6 items-start md:items-center`}>
-        <div className="bg-white p-4 rounded-full shadow-sm">
-          {currentConfig.icon}
+      {/* Main card */}
+      <div
+        className="ios-card p-6 flex flex-col md:flex-row gap-6 items-start md:items-center"
+        style={{ backgroundColor: cfg.cardBg }}
+      >
+        <div
+          className="w-14 h-14 rounded-3xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+        >
+          <Icon size={28} style={{ color: cfg.iconColor }} />
         </div>
+
         <div className="flex-1">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Estado Actual IA</div>
-          <h3 className={`text-[24px] font-black ${currentConfig.color} mb-2 leading-none`}>
-            {currentConfig.titulo}
+          <div className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+            style={{ color: 'var(--ios-secondary)' }}>
+            Estado actual · IA
+          </div>
+          <h3 className="text-[26px] font-bold mb-2 leading-none" style={{ color: cfg.color }}>
+            {cfg.titulo}
           </h3>
-          <p className="text-[13px] text-slate-700 leading-relaxed max-w-2xl">
-            {currentConfig.mensaje}
+          <p className="text-[13px] leading-relaxed max-w-2xl" style={{ color: 'var(--ios-label-2)' }}>
+            {cfg.mensaje}
           </p>
         </div>
+
         {!sinEvaluar && (
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 text-center min-w-[140px]">
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Probabilidad</div>
-            <div className={`text-[28px] font-bold ${currentConfig.color} leading-none`}>
+          <div
+            className="rounded-2xl p-5 text-center min-w-[130px]"
+            style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wider mb-1"
+              style={{ color: 'var(--ios-secondary)' }}>
+              Probabilidad
+            </div>
+            <div className="text-[30px] font-bold leading-none" style={{ color: cfg.color }}>
               {(prediccion.probabilidad * 100).toFixed(1)}%
             </div>
-            <div className="text-[9px] text-slate-400 mt-1">de reprobación</div>
+            <div className="text-[10px] mt-1" style={{ color: 'var(--ios-tertiary)' }}>de reprobación</div>
           </div>
         )}
       </div>
 
       {!sinEvaluar && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Factores de influencia */}
-          <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-100">
-            <h4 className="text-[13px] font-bold text-[#1a1a2e] mb-4 flex items-center gap-2">
-              <BrainCircuit size={16} className="text-blue-500" />
-              Factores principales analizados
+
+          {/* Factores */}
+          <div className="ios-card p-5">
+            <h4 className="text-[13px] font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--ios-label)' }}>
+              <BrainCircuit size={15} style={{ color: 'var(--ios-blue)' }} />
+              Factores analizados
             </h4>
-            
             <div className="space-y-5">
               <div>
-                <div className="flex justify-between items-end mb-1">
-                  <div className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                    <BookOpen size={14} className="text-slate-400" /> Promedio de Notas
+                <div className="flex justify-between items-end mb-2">
+                  <div className="flex items-center gap-2 text-[12px] font-medium" style={{ color: 'var(--ios-label)' }}>
+                    <BookOpen size={13} style={{ color: 'var(--ios-secondary)' }} />
+                    Promedio de Notas
                   </div>
-                  <div className="text-[13px] font-bold text-slate-800">{prediccion.promedioNotas.toFixed(1)} pts</div>
+                  <div className="text-[13px] font-bold" style={{ color: 'var(--ios-label)' }}>
+                    {prediccion.promedioNotas?.toFixed(1)} pts
+                  </div>
                 </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full ${prediccion.promedioNotas < 51 ? 'bg-red-500' : 'bg-blue-500'}`}
-                    style={{ width: `${Math.min(prediccion.promedioNotas, 100)}%` }}
+                <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--ios-separator)' }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(prediccion.promedioNotas, 100)}%`,
+                      backgroundColor: prediccion.promedioNotas < 51 ? 'var(--ios-red)' : 'var(--ios-blue)',
+                    }}
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between items-end mb-1">
-                  <div className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                    <Activity size={14} className="text-slate-400" /> Asistencia Global
+                <div className="flex justify-between items-end mb-2">
+                  <div className="flex items-center gap-2 text-[12px] font-medium" style={{ color: 'var(--ios-label)' }}>
+                    <Activity size={13} style={{ color: 'var(--ios-secondary)' }} />
+                    Asistencia Global
                   </div>
-                  <div className="text-[13px] font-bold text-slate-800">{prediccion.porcentajeAsistencia.toFixed(1)}%</div>
+                  <div className="text-[13px] font-bold" style={{ color: 'var(--ios-label)' }}>
+                    {prediccion.porcentajeAsistencia?.toFixed(1)}%
+                  </div>
                 </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full ${prediccion.porcentajeAsistencia < 80 ? 'bg-amber-500' : 'bg-green-500'}`}
-                    style={{ width: `${Math.min(prediccion.porcentajeAsistencia, 100)}%` }}
+                <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--ios-separator)' }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(prediccion.porcentajeAsistencia, 100)}%`,
+                      backgroundColor: prediccion.porcentajeAsistencia < 80 ? 'var(--ios-orange)' : 'var(--ios-green)',
+                    }}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 p-3 bg-blue-50 rounded-md text-[11px] text-blue-800 leading-relaxed border border-blue-100">
-              <strong>Nota técnica:</strong> Este cálculo utiliza el algoritmo de Random Forest comparando tu rendimiento histórico con el de gestiones pasadas de la Unidad Educativa. Trimestre analizado: <strong>{prediccion.trimestre}</strong>.
+            <div
+              className="mt-5 p-3 rounded-xl text-[11px] leading-relaxed"
+              style={{ backgroundColor: 'var(--ios-blue-light)', color: 'var(--ios-blue)' }}
+            >
+              <strong>Nota técnica:</strong> Este cálculo utiliza el algoritmo Random Forest comparando tu
+              rendimiento histórico con el de gestiones pasadas. Trimestre analizado: <strong>{prediccion.trimestre}</strong>.
             </div>
           </div>
 
           {/* Recomendaciones */}
-          <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-100">
-            <h4 className="text-[13px] font-bold text-[#1a1a2e] mb-4">Recomendaciones del sistema</h4>
+          <div className="ios-card p-5">
+            <h4 className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
+              Recomendaciones del sistema
+            </h4>
             <ul className="space-y-3">
-              {prediccion.nivelRiesgo === 'RIESGO_ALTO' && (
-                <>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" /> Habla con tus profesores para identificar las áreas exactas donde necesitas reforzar.</li>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" /> No faltes a más clases; la inasistencia es un factor crítico en el modelo predictivo.</li>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" /> Se enviará una notificación a tus tutores para buscar apoyo en conjunto.</li>
-                </>
-              )}
-              {prediccion.nivelRiesgo === 'RIESGO_MEDIO' && (
-                <>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" /> Organiza un horario de estudio extra en casa.</li>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" /> Si tienes dudas, consulta al profesor durante la clase.</li>
-                </>
-              )}
-              {prediccion.nivelRiesgo === 'SIN_RIESGO' && (
-                <>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" /> Sigue participando activamente en todas las materias.</li>
-                  <li className="flex gap-2 text-[12px] text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" /> Si tienes compañeros con dificultades, considera apoyarlos en grupos de estudio.</li>
-                </>
-              )}
+              {recoms.map((rec, i) => (
+                <li key={i} className="flex gap-2.5 text-[12px]" style={{ color: 'var(--ios-label-2)' }}>
+                  <div
+                    className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                    style={{ backgroundColor: cfg.dotColor }}
+                  />
+                  {rec}
+                </li>
+              ))}
             </ul>
           </div>
 

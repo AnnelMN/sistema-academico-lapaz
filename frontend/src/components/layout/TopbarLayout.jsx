@@ -1,7 +1,7 @@
-import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
+import ThemeToggle from '../ThemeToggle';
 
 const TopbarLayout = ({ children, tabs }) => {
   const { user, logout } = useAuth();
@@ -22,27 +22,44 @@ const TopbarLayout = ({ children, tabs }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-[var(--ios-bg)] font-sans p-4">
       
-      {/* Top Header */}
-      <header className="bg-[#1e3a5f] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      {/* Top Header Soft UI */}
+      <header className="max-w-7xl mx-auto rounded-3xl mb-6 overflow-hidden transition-all" style={{ backgroundColor: 'var(--ios-surface)', boxShadow: 'var(--soft-shadow-flat)', border: '1px solid rgba(255, 255, 255, 0.7)' }}>
+        <div className="px-8 py-5 flex justify-between items-center border-b" style={{ borderColor: 'var(--ios-separator-2)' }}>
           <div>
-            <h1 className="text-xl font-semibold">Unidad Educativa La Paz "A" — Portal Estudiante</h1>
-            <p className="text-sm text-blue-200 mt-0.5">Gestión 2026 · 1er Trimestre</p>
+            <h1 className="text-xl font-extrabold tracking-tight" style={{ color: 'var(--ios-label)' }}>
+              Unidad Educativa La Paz "A" — Portal Estudiante
+            </h1>
+            <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
+              Gestión 2026 · 1er Trimestre
+            </p>
           </div>
           
           <div className="flex items-center space-x-4">
+            <NavLink
+              to="/2fa-setup"
+              className="p-2 rounded-xl transition-all active:scale-95"
+              style={{ color: 'var(--ios-blue)', backgroundColor: 'var(--ios-blue-light)' }}
+              title="Seguridad 2FA"
+              aria-label="Configurar 2FA"
+            >
+              <ShieldCheck size={18} />
+            </NavLink>
+            <ThemeToggle showLabel={true} />
             <div className="text-right">
-              <p className="text-sm font-medium">{user?.nombre || 'Estudiante Demo'}</p>
-              <p className="text-xs text-blue-200">3ro B</p>
+              <p className="text-xs font-bold" style={{ color: 'var(--ios-label)' }}>{user?.nombre || 'Estudiante Demo'}</p>
+              <p className="text-[10px] font-semibold" style={{ color: 'var(--ios-secondary)' }}>3ro B</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-blue-600 font-bold flex items-center justify-center border border-blue-400">
+            <div className="w-9 h-9 rounded-full font-extrabold text-xs text-white flex items-center justify-center shadow-md" style={{ background: 'linear-gradient(135deg, var(--ios-blue), var(--ios-blue-dark))' }}>
               {getInitials(user?.nombre)}
             </div>
             <button 
               onClick={handleLogout}
-              className="ml-4 p-2 bg-white/10 hover:bg-white/20 rounded text-sm transition-colors flex items-center justify-center"
+              className="p-2 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer"
+              style={{ color: 'var(--ios-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--ios-red)'; e.currentTarget.style.backgroundColor = 'var(--ios-red-light)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--ios-secondary)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
               title="Cerrar sesión"
             >
               <LogOut size={18} />
@@ -50,19 +67,19 @@ const TopbarLayout = ({ children, tabs }) => {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-6">
-          <nav className="flex space-x-8">
+        {/* Navigation Tabs Soft UI Pills */}
+        <div className="px-8 py-3 bg-[var(--ios-bg)]">
+          <nav className="flex space-x-3">
             {tabs.map((tab, idx) => (
               <NavLink
                 key={idx}
                 to={tab.path}
                 end={tab.exact}
                 className={({ isActive }) =>
-                  `py-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                  `py-2 px-5 text-xs font-bold rounded-2xl transition-all duration-200 ${
                     isActive 
-                      ? 'border-blue-400 text-white' 
-                      : 'border-transparent text-blue-200 hover:text-white hover:border-blue-300'
+                      ? 'bg-white shadow-md text-blue-600 scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                   }`
                 }
               >
@@ -73,8 +90,8 @@ const TopbarLayout = ({ children, tabs }) => {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      {/* Main Content Area Soft UI */}
+      <main className="max-w-7xl mx-auto">
         {children}
       </main>
 

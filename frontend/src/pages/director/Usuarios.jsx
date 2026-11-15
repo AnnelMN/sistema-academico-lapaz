@@ -1,43 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Search, Power, X } from 'lucide-react';
 import { getUsuarios, createUsuario, updateUsuario, toggleEstadoUsuario } from '../../services/usuarios.service';
+import { getCursos } from '../../services/academico.service';
+
+const getRolBadge = (rol) => {
+  switch (rol) {
+    case 'DIRECTOR':      return 'ios-badge ios-badge-info';
+    case 'PROFESOR':      return 'ios-badge ios-badge-danger';
+    case 'ADMINISTRATIVO':return 'ios-badge ios-badge-warning';
+    case 'ESTUDIANTE':    return 'ios-badge ios-badge-success';
+    default:              return 'ios-badge ios-badge-neutral';
+  }
+};
 
 const Usuarios = () => {
-  const [usuarios, setUsuarios] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  
-  // Modal state
+  const [usuarios, setUsuarios]       = useState([]);
+  const [cursos, setCursos]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [search, setSearch]           = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    nombre: '',
-    email: '',
-    password: '',
-    rol: 'ESTUDIANTE'
-  });
+  const [formData, setFormData]       = useState({ nombre: '', email: '', password: '', rol: 'ESTUDIANTE', cursoId: '' });
+  const [localError, setLocalError]   = useState('');
 
   useEffect(() => {
     fetchUsuarios();
+    fetchCursos();
   }, []);
 
   const fetchUsuarios = async () => {
     try {
       setLoading(true);
-      const data = await getUsuarios();
-      setUsuarios(data);
-    } catch (error) {
-      console.error('Error al cargar usuarios:', error);
+      setUsuarios(await getUsuarios());
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCursos = async () => {
+    try {
+      const data = await getCursos();
+      setCursos(data || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    setLocalError('');
   };
 
   const handleOpenModal = (user = null) => {
@@ -47,150 +61,166 @@ const Usuarios = () => {
         nombre: user.nombre,
         email: user.email,
         password: '',
-        rol: user.rol
+        rol: user.rol,
+        cursoId: user.estudiante?.curso?.id || '',
       });
     } else {
       setEditingUser(null);
-      setFormData({
-        nombre: '',
-        email: '',
-        password: '',
-        rol: 'ESTUDIANTE'
-      });
+      setFormData({ nombre: '', email: '', password: '', rol: 'ESTUDIANTE', cursoId: '' });
     }
+    setLocalError('');
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLocalError('');
+
+    if (formData.rol === 'ESTUDIANTE' && !formData.cursoId) {
+      setLocalError('Debe seleccionar un curso para el estudiante');
+      return;
+    }
+
     try {
       if (editingUser) {
-        const dataToUpdate = { ...formData };
-        if (!dataToUpdate.password) delete dataToUpdate.password;
-        await updateUsuario(editingUser.id, dataToUpdate);
+        const data = { ...formData };
+        if (!data.password) delete data.password;
+        await updateUsuario(editingUser.id, data);
       } else {
         await createUsuario(formData);
       }
       setIsModalOpen(false);
       fetchUsuarios();
-    } catch (error) {
-      console.error('Error guardando usuario:', error);
+    } catch (err) {
+      console.error(err);
+      setLocalError(err.response?.data?.error || 'Error al guardar usuario');
     }
   };
 
-  const handleToggleEstado = async (id) => {
+  const handleToggle = async (id) => {
     try {
       await toggleEstadoUsuario(id);
       fetchUsuarios();
-    } catch (error) {
-      console.error('Error al cambiar estado:', error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const filteredUsuarios = usuarios.filter(u => 
-    u.nombre.toLowerCase().includes(search.toLowerCase()) || 
+  const filtered = usuarios.filter(u =>
+    u.nombre.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getRolColor = (rol) => {
-    switch(rol) {
-      case 'DIRECTOR': return 'bg-[#dbeafe] text-[#1e40af]';
-      case 'PROFESOR': return 'bg-[#fee2e2] text-[#991b1b]';
-      case 'ADMINISTRATIVO': return 'bg-[#fef3c7] text-[#92400e]';
-      case 'ESTUDIANTE': return 'bg-[#d1fae5] text-[#065f46]';
-      default: return 'bg-slate-100 text-slate-600';
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      
-      {/* Page Header */}
-      <div className="flex justify-between items-end">
+    <div className="space-y-5">
+
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-[18px] font-bold text-[#1a1a2e]">Gestión de Usuarios</h2>
-          <p className="text-[11px] text-slate-400">Administra el acceso de personal y estudiantes</p>
+          <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+            Gestión de Usuarios
+          </h2>
+          <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
+            Administra el acceso de personal y estudiantes
+          </p>
         </div>
-        <button 
+        <button
+          id="btn-nuevo-usuario"
           onClick={() => handleOpenModal()}
-          className="bg-[#4a90e2] hover:bg-blue-600 text-white text-[11px] font-bold px-4 py-2 rounded-md transition-colors flex items-center gap-2"
+          className="ios-btn-primary text-[13px]"
         >
-          <Plus size={14} /> Nuevo usuario
+          <Plus size={15} /> Nuevo usuario
         </button>
       </div>
 
-      {/* Search & Stats */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+      {/* Search + Stats */}
+      <div className="ios-card p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
-          <input 
-            type="text" 
-            placeholder="Buscar por nombre o correo..." 
+          <input
+            type="text"
+            placeholder="Buscar por nombre o correo..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-md text-[12px] outline-none focus:ring-1 focus:ring-blue-500"
+            className="ios-input pl-10"
           />
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={14}
+            style={{ color: 'var(--ios-tertiary)' }} />
         </div>
-        <div className="flex gap-4">
-          <div className="text-center px-4 border-r border-slate-100">
-            <div className="text-[14px] font-bold text-[#1a1a2e]">{usuarios.length}</div>
-            <div className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Total</div>
+        <div className="flex gap-6">
+          <div className="text-center">
+            <div className="text-[18px] font-bold" style={{ color: 'var(--ios-label)' }}>{usuarios.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ios-secondary)' }}>Total</div>
           </div>
-          <div className="text-center px-4">
-            <div className="text-[14px] font-bold text-[#16a34a]">{usuarios.filter(u => u.activo).length}</div>
-            <div className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Activos</div>
+          <div className="text-center">
+            <div className="text-[18px] font-bold" style={{ color: 'var(--ios-green)' }}>
+              {usuarios.filter(u => u.activo).length}
+            </div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ios-secondary)' }}>Activos</div>
           </div>
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-left">
+      {/* Table */}
+      <div className="ios-card overflow-hidden">
+        <table className="ios-table">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nombre y correo</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rol</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estado</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Acciones</th>
+            <tr>
+              <th>Nombre y correo</th>
+              <th>Curso</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th className="text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody>
             {loading ? (
               <tr>
-                <td colSpan="4" className="px-4 py-8 text-center text-slate-400 text-[12px]">Cargando usuarios...</td>
+                <td colSpan={5} className="text-center py-8" style={{ color: 'var(--ios-secondary)' }}>
+                  Cargando usuarios...
+                </td>
               </tr>
-            ) : filteredUsuarios.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-4 py-8 text-center text-slate-400 text-[12px]">No se encontraron resultados</td>
+                <td colSpan={5} className="text-center py-8" style={{ color: 'var(--ios-secondary)' }}>
+                  No se encontraron resultados
+                </td>
               </tr>
             ) : (
-              filteredUsuarios.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="text-[12px] font-bold text-[#1a1a2e]">{user.nombre}</div>
-                    <div className="text-[10px] text-slate-400">{user.email}</div>
+              filtered.map((user) => (
+                <tr key={user.id}>
+                  <td>
+                    <div className="font-semibold text-[13px]" style={{ color: 'var(--ios-label)' }}>{user.nombre}</div>
+                    <div className="text-[11px]" style={{ color: 'var(--ios-secondary)' }}>{user.email}</div>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getRolColor(user.rol)}`}>
-                      {user.rol}
-                    </span>
+                  <td className="text-[12px]">
+                    {user.estudiante?.curso ? `${user.estudiante.curso.nivel}° ${user.estudiante.curso.paralelo}` : '-'}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-[10px] font-bold ${user.activo ? 'text-[#16a34a]' : 'text-[#ef4444]'}`}>
+                  <td>
+                    <span className={getRolBadge(user.rol)}>{user.rol}</span>
+                  </td>
+                  <td>
+                    <span
+                      className="text-[12px] font-semibold"
+                      style={{ color: user.activo ? 'var(--ios-green)' : 'var(--ios-red)' }}
+                    >
                       {user.activo ? '● Activo' : '● Inactivo'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="text-right">
                     <div className="flex justify-end gap-1">
-                      <button 
+                      <button
                         onClick={() => handleOpenModal(user)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                        className="p-2 rounded-xl transition-all hover:bg-[#EAF4FF]"
+                        style={{ color: 'var(--ios-secondary)' }}
                       >
                         <Edit2 size={14} />
                       </button>
-                      <button 
-                        onClick={() => handleToggleEstado(user.id)}
-                        className={`p-1.5 transition-colors ${user.activo ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-emerald-500'}`}
+                      <button
+                        onClick={() => handleToggle(user.id)}
+                        className="p-2 rounded-xl transition-all"
+                        style={{ color: user.activo ? 'var(--ios-secondary)' : 'var(--ios-green)' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = user.activo ? '#FFECEB' : '#E8F8ED'; e.currentTarget.style.color = user.activo ? 'var(--ios-red)' : 'var(--ios-green)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = user.activo ? 'var(--ios-secondary)' : 'var(--ios-green)'; }}
                       >
                         <Power size={14} />
                       </button>
@@ -203,87 +233,102 @@ const Usuarios = () => {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* Modal iOS */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-[14px] font-bold text-[#1a1a2e]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}>
+          <div
+            className="w-full max-w-md overflow-hidden"
+            style={{
+              backgroundColor: 'var(--ios-surface)',
+              borderRadius: 'var(--ios-radius-lg)',
+              boxShadow: 'var(--ios-shadow-md)',
+            }}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 flex justify-between items-center"
+              style={{ borderBottom: '1px solid var(--ios-separator)' }}>
+              <h3 className="text-[16px] font-semibold" style={{ color: 'var(--ios-label)' }}>
                 {editingUser ? 'Editar usuario' : 'Nuevo usuario'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-full transition-all hover:bg-[#F2F2F7]"
+                style={{ color: 'var(--ios-secondary)' }}>
                 <X size={18} />
               </button>
             </div>
-            
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nombre completo</label>
-                  <input 
-                    type="text" 
-                    name="nombre"
-                    value={formData.nombre}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-[12px] outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Correo electrónico</label>
-                  <input 
-                    type="email" 
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-[12px] outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Contraseña {editingUser && '(Opcional)'}
+            {/* Modal Form */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {[
+                { label: 'Nombre completo', name: 'nombre', type: 'text', required: true },
+                { label: 'Correo electrónico', name: 'email', type: 'email', required: true },
+                { label: `Contraseña${editingUser ? ' (opcional)' : ''}`, name: 'password', type: 'password', required: !editingUser },
+              ].map(field => (
+                <div key={field.name}>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--ios-secondary)' }}>
+                    {field.label}
                   </label>
-                  <input 
-                    type="password" 
-                    name="password"
-                    value={formData.password}
+                  <input
+                    type={field.type}
+                    name={field.name}
+                    value={formData[field.name]}
                     onChange={handleInputChange}
-                    required={!editingUser}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-[12px] outline-none focus:ring-1 focus:ring-blue-500"
+                    required={field.required}
+                    className="ios-input"
                   />
                 </div>
+              ))}
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Rol</label>
-                  <select 
-                    name="rol"
-                    value={formData.rol}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-[12px] outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="ESTUDIANTE">Estudiante</option>
-                    <option value="PROFESOR">Profesor</option>
-                    <option value="ADMINISTRATIVO">Administrativo</option>
-                    <option value="DIRECTOR">Director</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5"
+                  style={{ color: 'var(--ios-secondary)' }}>
+                  Rol
+                </label>
+                <select name="rol" value={formData.rol} onChange={handleInputChange}
+                  className="ios-select w-full">
+                  <option value="ESTUDIANTE">Estudiante</option>
+                  <option value="PROFESOR">Profesor</option>
+                  <option value="ADMINISTRATIVO">Administrativo</option>
+                  <option value="DIRECTOR">Director</option>
+                </select>
               </div>
 
-              <div className="pt-2 flex gap-2 justify-end">
-                <button 
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
-                >
+              {formData.rol === 'ESTUDIANTE' && (
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--ios-secondary)' }}>
+                    Curso
+                  </label>
+                  <select name="cursoId" value={formData.cursoId || ''} onChange={handleInputChange}
+                    className="ios-select w-full">
+                    <option value="">Seleccionar curso</option>
+                    {cursos.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nivel}° {c.paralelo}
+                      </option>
+                    ))}
+                  </select>
+                  {localError && formData.rol === 'ESTUDIANTE' && !formData.cursoId && (
+                    <div className="text-[11px] text-red-600 mt-1">Seleccione un curso</div>
+                  )}
+                </div>
+              )}
+
+              {localError && !(
+                formData.rol === 'ESTUDIANTE' && !formData.cursoId
+              ) && (
+                <div className="text-[11px] text-red-600 mt-1">{localError}</div>
+              )}
+
+              <div className="pt-2 flex gap-3 justify-end">
+                <button type="button" onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2.5 text-[13px] font-semibold rounded-xl transition-all hover:bg-[#F2F2F7]"
+                  style={{ color: 'var(--ios-secondary)' }}>
                   Cancelar
                 </button>
-                <button 
-                  type="submit"
-                  className="px-5 py-2 bg-[#4a90e2] hover:bg-blue-600 text-white text-[11px] font-bold rounded-md transition-colors"
-                >
+                <button type="submit" className="ios-btn-primary text-[13px]">
                   {editingUser ? 'Guardar cambios' : 'Crear usuario'}
                 </button>
               </div>
@@ -291,7 +336,6 @@ const Usuarios = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

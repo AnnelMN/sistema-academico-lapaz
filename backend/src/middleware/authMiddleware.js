@@ -12,6 +12,11 @@ const authMiddleware = (roles = []) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      if (decoded.purpose) {
+        return res.status(401).json({ error: 'Token temporal no autorizado para esta ruta' });
+      }
+
       req.user = decoded;
 
       if (roles.length && !roles.includes(req.user.rol)) {

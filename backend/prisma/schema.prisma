@@ -49,8 +49,14 @@ model Usuario {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
+  // --- 2FA TOTP (Google Authenticator) ---
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean  @default(false)
+
   estudiante Estudiante?
   docente    Docente?
+
+  codigosVerificacion CodigoVerificacion[]
 
   @@map("usuarios")
 }
@@ -219,7 +225,26 @@ model Configuracion {
   umbralAprobacion Int      @default(51)
   trimestreActivo  Int      @default(1)
   gestionActual    Int      @default(2026)
-  actualizadoEn    DateTime @updatedAt
+  actualizadoEn DateTime @updatedAt
 
   @@map("configuracion")
+}
+
+// ─────────────────────────────────────────────
+// TABLA EXTRA: CodigoVerificacion (OTP por correo)
+// Un solo uso, expira en 5 minutos. El código se guarda
+// como hash SHA-256, nunca en texto plano.
+// ─────────────────────────────────────────────
+model CodigoVerificacion {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  codigoHash String
+  expiraEn   DateTime
+  intentos   Int      @default(0)
+  usado      Boolean  @default(false)
+  creadoEn   DateTime @default(now())
+
+  @@index([usuarioId, usado])
+  @@map("codigos_verificacion")
 }

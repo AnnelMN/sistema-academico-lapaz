@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Obtener el perfil del estudiante autenticado
 const getEstudiantePerfil = async (usuarioId) => {

@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Get all users
 const getUsuarios = async (req, res) => {
@@ -13,6 +12,11 @@ const getUsuarios = async (req, res) => {
         rol: true,
         activo: true,
         creadoEn: true,
+        estudiante: {
+          select: {
+            curso: { select: { nivel: true, paralelo: true } },
+          },
+        },
       },
       orderBy: { creadoEn: 'desc' },
     });
@@ -95,7 +99,7 @@ const createUsuario = async (req, res) => {
 const updateUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, email, rol, password } = req.body;
+    const { nombre, email, password, rol, cursoId } = req.body;
 
     const updateData = {};
     if (nombre) updateData.nombre = nombre;
@@ -105,15 +109,42 @@ const updateUsuario = async (req, res) => {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
+    let estudianteNested;
+    if (rol === 'ESTUDIANTE' && cursoId) {
+      const curso = await prisma.curso.findUnique({ where: { id: cursoId } });
+      if (!curso) {
+        return res.status(404).json({ error: 'Curso no encontrado' });
+      }
+      estudianteNested = {
+        upsert: {
+          where: { usuarioId: id },
+          create: {
+            cursoId,
+            gestion: new Date().getFullYear(),
+            emailTutor: `tutor_${email}`,
+          },
+          update: { cursoId },
+        },
+      };
+    }
+
     const updatedUser = await prisma.usuario.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...updateData,
+        ...(estudianteNested ? { estudiante: estudianteNested } : {}),
+      },
       select: {
         id: true,
         nombre: true,
         email: true,
         rol: true,
         activo: true,
+        estudiante: {
+          select: {
+            curso: { select: { nivel: true, paralelo: true } },
+          },
+        },
       }
     });
 

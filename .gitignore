@@ -1,16 +1,49 @@
-
-
+# ── Dependencias (en cualquier carpeta) ──
 node_modules/
-
-.env
-
 __pycache__/
-
 venv/
+.venv/
 
+# ── Variables de entorno (las plantillas .env.example SÍ se versionan) ──
+.env
+.env.*
+!.env.example
+
+# ── Build ──
+dist/
+build/
+
+# ── Modelo IA: se ignoran los .pkl excepto el modelo de producción (lo necesita Render) ──
 *.pkl
+!microservicio-ia/model/modelo_riesgo.pkl
 
+# ── Datos pesados de entrenamiento (27 MB) ──
+microservicio-ia/data/*.csv
+
+# ── Logs y temporales ──
+*.log
+logs/
+NUL
+*.tmp
+temp-qr/
+
+# ── Scripts locales de prueba/diagnóstico (pueden contener tokens o datos reales) ──
+backend/test_*.js
+backend/verify_endpoint.js
+backend/check_teacher.js
+backend/diagnostico.js
+backend/fix_estudiantes.js
+
+# ── Dependencias instaladas por error en la raíz del proyecto ──
+/package.json
+/package-lock.json
+
+# ── Sistema / editor ──
 .DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
 
-# Archivos privados del proyecto
+# ── Archivos privados del proyecto ──
 AGENTS.md
