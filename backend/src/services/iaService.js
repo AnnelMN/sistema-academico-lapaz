@@ -1,4 +1,17 @@
+// La predicción automática está PAUSADA salvo que IA_HABILITADA=true.
+// Motivo: el modelo actual se entrenó con un dataset que no corresponde al colegio
+// y sus resultados no son confiables. Mientras esté pausada no se guardan
+// predicciones nuevas ni se envían correos de Riesgo Alto (los de exceso de
+// faltas sí se siguen enviando, porque no dependen de la IA).
+const iaHabilitada = () => process.env.IA_HABILITADA === 'true';
+
+exports.iaHabilitada = iaHabilitada;
+
 exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
+  if (!iaHabilitada()) {
+    return null;
+  }
+
   const iaServiceUrl = process.env.IA_SERVICE_URL || 'http://localhost:8000';
   
   const payload = {
