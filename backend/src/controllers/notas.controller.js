@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const iaService = require('../services/iaService');
 const emailService = require('../services/emailService');
+const { verificarAccesoProgramacion, verificarEstudiantesEnCurso } = require('../lib/acceso');
 
 // Obtener materias asignadas al docente autenticado o todas si es Director
 exports.getMisMaterias = async (req, res) => {
@@ -123,20 +124,17 @@ exports.upsertNota = async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    // Verificar que la materia le pertenece al docente autenticado
-    const docente = await prisma.docente.findUnique({ where: { usuarioId: req.user.id } });
-    if (!docente && req.user.rol !== 'DIRECTOR') {
-      return res.status(404).json({ error: 'Perfil de docente no encontrado' });
+    // Verificar que la materia le pertenece al docente autenticado (el Director puede cualquiera)
+    const acceso = await verificarAccesoProgramacion(req.user, materiaProgramadaId);
+    if (acceso.error) {
+      return res.status(acceso.status).json({ error: acceso.error });
     }
-    const programacionCheck = await prisma.materiaProgramada.findUnique({
-      where: { id: materiaProgramadaId },
-      select: { docenteId: true }
-    });
-    if (
-      !programacionCheck ||
-      (req.user.rol !== 'DIRECTOR' && programacionCheck.docenteId !== docente.id)
-    ) {
-      return res.status(403).json({ error: 'No tienes acceso a esta materia' });
+
+    // Verificar que el estudiante pertenece al curso de esta materia
+    // (evita registrar notas y disparar correos a tutores de otros cursos)
+    const pertenencia = await verificarEstudiantesEnCurso([estudianteId], acceso.programacion.cursoId);
+    if (pertenencia.error) {
+      return res.status(pertenencia.status).json({ error: pertenencia.error });
     }
 
     // Validar que el trimestre coincida con el activo

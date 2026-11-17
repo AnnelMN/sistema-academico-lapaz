@@ -1,6 +1,11 @@
 const prisma = require('../lib/prisma');
 const iaService = require('../services/iaService');
 const emailService = require('../services/emailService');
+const {
+  esIdValido,
+  verificarAccesoProgramacion,
+  verificarEstudiantesEnCurso,
+} = require('../lib/acceso');
 
 // ─────────────────────────────────────────────
 // GET /api/asistencia/estudiantes
@@ -14,32 +19,12 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
       return res.status(400).json({ error: 'Faltan parámetros: materiaProgramadaId y fecha' });
     }
 
-    // Los docentes deben tener perfil de docente; el Director puede ver cualquier programación
-    if (req.user.rol !== 'DIRECTOR') {
-      const docente = await prisma.docente.findUnique({ where: { usuarioId: req.user.id } });
-      if (!docente) {
-        return res.status(404).json({ error: 'Perfil de docente no encontrado' });
-      }
-    }
-    const programacion = await prisma.materiaProgramada.findUnique({
-      where: { id: materiaProgramadaId },
-      select: { cursoId: true }
-    });
-
-    if (!programacion) {
-      return res.status(404).json({ error: 'Programación no encontrada' });
-    }
-
     // Los docentes solo ven sus propias programaciones; el Director puede ver cualquiera
-    if (req.user.rol !== 'DIRECTOR') {
-      const programacionCheck = await prisma.materiaProgramada.findUnique({
-        where: { id: materiaProgramadaId },
-        select: { docenteId: true }
-      });
-      if (!programacionCheck || programacionCheck.docenteId !== docente.id) {
-        return res.status(403).json({ error: 'No tienes acceso a esta materia' });
-      }
+    const acceso = await verificarAccesoProgramacion(req.user, materiaProgramadaId);
+    if (acceso.error) {
+      return res.status(acceso.status).json({ error: acceso.error });
     }
+    const { programacion } = acceso;
 
     // Fecha normalizada al inicio del día UTC
     const fechaInicio = new Date(fecha);
@@ -109,16 +94,22 @@ exports.registrarAsistencia = async (req, res) => {
     }
 
     // Verificar que la materia le pertenece al docente autenticado
-    const docente = await prisma.docente.findUnique({ where: { usuarioId: req.user.id } });
-    if (!docente) {
-      return res.status(404).json({ error: 'Perfil de docente no encontrado' });
+    const acceso = await verificarAccesoProgramacion(req.user, materiaProgramadaId);
+    if (acceso.error) {
+      return res.status(acceso.status).json({ error: acceso.error });
     }
-    const programacionCheck = await prisma.materiaProgramada.findUnique({
-      where: { id: materiaProgramadaId },
-      select: { docenteId: true }
-    });
-    if (!programacionCheck || programacionCheck.docenteId !== docente.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta materia' });
+
+    // Verificar que todos los estudiantes pertenecen al curso de esta materia
+    // (evita registrar asistencia y disparar correos a tutores de otros cursos)
+    if (!registros.every(r => r && typeof r === 'object')) {
+      return res.status(400).json({ error: 'Formato de registros inválido' });
+    }
+    const pertenencia = await verificarEstudiantesEnCurso(
+      registros.map(r => r.estudianteId),
+      acceso.programacion.cursoId
+    );
+    if (pertenencia.error) {
+      return res.status(pertenencia.status).json({ error: pertenencia.error });
     }
 
     const fechaDate = new Date(fecha);
@@ -309,10 +300,41 @@ exports.registrarAsistencia = async (req, res) => {
 // ─────────────────────────────────────────────
 exports.getHistorialAsistencia = async (req, res) => {
   try {
-    const { estudianteId, materiaProgramadaId } = req.query;
+    const { materiaProgramadaId } = req.query;
+    let { estudianteId } = req.query;
 
-    if (!estudianteId || !materiaProgramadaId) {
-      return res.status(400).json({ error: 'Faltan parámetros: estudianteId y materiaProgramadaId' });
+    if (!esIdValido(materiaProgramadaId)) {
+      return res.status(400).json({ error: 'Falta el parámetro materiaProgramadaId' });
+    }
+
+    if (req.user.rol === 'ESTUDIANTE') {
+      // El estudiante solo puede ver su propio historial: el id sale del token, no de la URL
+      const propio = await prisma.estudiante.findUnique({
+        where: { usuarioId: req.user.id },
+        select: { id: true },
+      });
+      if (!propio) {
+        return res.status(404).json({ error: 'Perfil de estudiante no encontrado' });
+      }
+      if (estudianteId && estudianteId !== propio.id) {
+        return res.status(403).json({ error: 'No tienes acceso a este historial' });
+      }
+      estudianteId = propio.id;
+    } else {
+      if (!esIdValido(estudianteId)) {
+        return res.status(400).json({ error: 'Faltan parámetros: estudianteId y materiaProgramadaId' });
+      }
+
+      // Profesor: solo sus materias; Director: cualquiera
+      const acceso = await verificarAccesoProgramacion(req.user, materiaProgramadaId);
+      if (acceso.error) {
+        return res.status(acceso.status).json({ error: acceso.error });
+      }
+
+      const pertenencia = await verificarEstudiantesEnCurso([estudianteId], acceso.programacion.cursoId);
+      if (pertenencia.error) {
+        return res.status(pertenencia.status).json({ error: pertenencia.error });
+      }
     }
 
     const historial = await prisma.asistencia.findMany({

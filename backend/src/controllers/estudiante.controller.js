@@ -47,8 +47,12 @@ exports.getMiHorario = async (req, res) => {
       where: { cursoId: estudiante.cursoId },
       include: {
         materia: true,
+        // Solo el nombre del docente: nunca devolver el objeto usuario completo
+        // (contiene password y twoFactorSecret).
         docente: {
-          include: { usuario: true }
+          select: {
+            usuario: { select: { nombre: true } }
+          }
         }
       }
     });
