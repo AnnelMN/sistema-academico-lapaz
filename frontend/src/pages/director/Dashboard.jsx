@@ -52,6 +52,10 @@ const DirectorDashboard = () => {
     );
   }
 
+  const textoTrimestre = dashboard.trimestreActivo
+    ? `Trimestre ${dashboard.trimestreActivo} (activo)`
+    : 'Sin trimestre activo (vacaciones o descanso)';
+
   const kpiData = [
     {
       label: 'Total estudiantes',
@@ -62,7 +66,7 @@ const DirectorDashboard = () => {
     {
       label: 'Tasa de aprobación',
       value: `${dashboard.tasaAprobacion}%`,
-      badge: `Trimestre ${dashboard.trimestreActivo}`,
+      badge: `Toda la gestión ${dashboard.gestion}`,
       badgeClass: 'ios-badge ios-badge-success',
     },
     {
@@ -86,7 +90,7 @@ const DirectorDashboard = () => {
           Panel general
         </h2>
         <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
-          Gestión escolar {dashboard.gestion} · Trimestre {dashboard.trimestreActivo}
+          Gestión escolar {dashboard.gestion} · {textoTrimestre}
         </p>
       </div>
 
@@ -110,7 +114,7 @@ const DirectorDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="ios-card p-5">
           <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
-            Aprobación por curso — Trimestre {dashboard.trimestreActivo}
+            Aprobación por curso — Gestión {dashboard.gestion}
           </div>
           {dashboard.cursos.length === 0 ? (
             <p className="text-[12px]" style={{ color: 'var(--ios-secondary)' }}>

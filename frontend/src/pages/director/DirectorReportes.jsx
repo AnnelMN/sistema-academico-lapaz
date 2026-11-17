@@ -70,15 +70,24 @@ export default function DirectorReportes() {
       r.curso,
       r.materia,
       r.trimestre,
+      r.ser,
+      r.saber,
+      r.hacer,
+      r.autoevaluacion ?? '',
       r.total,
       r.aprobado ? 'Aprobado' : 'Reprobado',
       formatDate(r.creadoEn),
     ]);
+    // Neutraliza fórmulas: una celda que empieza con = + - @ se ejecutaría en Excel
+    const celdaSegura = (valor) => {
+      const texto = String(valor ?? '');
+      return /^[=+\-@\t\r]/.test(texto) ? `'${texto}` : texto;
+    };
     const csv = [
-      ['Estudiante', 'Curso', 'Materia', 'Trimestre', 'Total', 'Estado', 'Fecha'],
+      ['Estudiante', 'Curso', 'Materia', 'Trimestre', 'SER (10)', 'SABER (45)', 'HACER (40)', 'AUTOEVALUACIÓN (5)', 'Total (100)', 'Estado', 'Fecha'],
       ...filas,
     ]
-      .map((fila) => fila.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .map((fila) => fila.map((c) => `"${celdaSegura(c).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -313,7 +322,7 @@ export default function DirectorReportes() {
         </div>
       </div>
 
-      <div className="ios-card overflow-hidden">
+      <div className="ios-card overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
@@ -321,6 +330,10 @@ export default function DirectorReportes() {
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Curso</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Materia</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Trimestre</th>
+              <th className="px-2 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Ser /10</th>
+              <th className="px-2 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Saber /45</th>
+              <th className="px-2 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Hacer /40</th>
+              <th className="px-2 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Autoev. /5</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Total</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Estado</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Fecha</th>
@@ -329,7 +342,7 @@ export default function DirectorReportes() {
           <tbody className="divide-y divide-slate-50">
             {recientes.length === 0 ? (
               <tr>
-                <td colSpan="7" className="px-4 py-10 text-center text-slate-400 text-[12px]">
+                <td colSpan="11" className="px-4 py-10 text-center text-slate-400 text-[12px]">
                   No hay notas registradas con los filtros seleccionados.
                 </td>
               </tr>
@@ -340,6 +353,10 @@ export default function DirectorReportes() {
                   <td className="px-4 py-3 text-[12px]">{r.curso}</td>
                   <td className="px-4 py-3 text-[12px]">{r.materia}</td>
                   <td className="px-4 py-3 text-center text-[12px]">{r.trimestre}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.ser}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.saber}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.hacer}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.autoevaluacion ?? '—'}</td>
                   <td className="px-4 py-3 text-center text-[12px] font-bold">{r.total}</td>
                   <td className="px-4 py-3 text-center text-[12px]">
                     <span

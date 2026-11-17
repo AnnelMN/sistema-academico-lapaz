@@ -1,8 +1,10 @@
 import api from './api';
 
 const estudianteService = {
-  getMisNotas: async (trimestre = 1) => {
-    const response = await api.get(`/api/estudiante/notas?trimestre=${trimestre}`);
+  // { gestion, trimestre, trimestreActivo, umbralAprobacion, materias: [...] }
+  // Sin trimestre: el servidor usa el trimestre activo
+  getMisNotas: async (trimestre = null) => {
+    const response = await api.get('/api/estudiante/notas', { params: trimestre ? { trimestre } : {} });
     return response.data;
   },
 

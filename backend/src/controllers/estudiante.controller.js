@@ -1,5 +1,7 @@
 const prisma = require('../lib/prisma');
 const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { periodoActivo, hoyLaPaz } = require('../services/periodoService');
+const { DIMENSIONES, cargarContexto, valorAsistencia, notaAnual } = require('../services/calificacionService');
 
 // Obtener el perfil del estudiante autenticado
 const getEstudiantePerfil = async (usuarioId) => {
@@ -12,27 +14,86 @@ const getEstudiantePerfil = async (usuarioId) => {
   return estudiante;
 };
 
-// 1. Obtener notas por trimestre
+// 1. Mis notas por materia: las 4 dimensiones del trimestre, el detalle de MIS
+//    casillas (nunca las notas de compañeros), los totales de cada trimestre y la
+//    nota anual. GET /api/estudiante/notas?trimestre=1|2|3 (por defecto, el activo)
 exports.getMisNotas = async (req, res) => {
   try {
     const estudiante = await getEstudiantePerfil(req.user.id);
-    const trimestre = parseInt(req.query.trimestre) || 1;
+    const activo = await periodoActivo();
+    const gestion = activo?.gestion ?? Number(hoyLaPaz().slice(0, 4));
 
-    const notas = await prisma.nota.findMany({
-      where: {
-        estudianteId: estudiante.id,
-        trimestre: trimestre
-      },
-      include: {
-        materiaProgramada: {
-          include: {
-            materia: true
-          }
-        }
+    let trimestre = activo?.trimestre ?? 1;
+    if (req.query.trimestre !== undefined) {
+      trimestre = Number(req.query.trimestre);
+      if (![1, 2, 3].includes(trimestre)) {
+        return res.status(400).json({ error: 'El trimestre debe ser 1, 2 o 3' });
       }
+    }
+
+    const programaciones = await prisma.materiaProgramada.findMany({
+      where: { cursoId: estudiante.cursoId, gestion },
+      select: {
+        id: true,
+        materia: { select: { nombre: true } },
+        docente: { select: { usuario: { select: { nombre: true } } } },
+      },
+      orderBy: { materia: { nombre: 'asc' } },
     });
 
-    res.json(notas);
+    const notasDelAnio = await prisma.nota.findMany({
+      where: { estudianteId: estudiante.id, materiaProgramadaId: { in: programaciones.map((p) => p.id) } },
+    });
+
+    const materias = [];
+    for (const p of programaciones) {
+      const ctx = await cargarContexto(p.id, trimestre);
+      const misValores = ctx.valoresPorEstudiante.get(estudiante.id) || new Map();
+      const miAsistencia = ctx.asistenciaPorEstudiante.get(estudiante.id) || { presentes: 0, justificados: 0, ausentes: 0, total: 0 };
+      const valorAsis = valorAsistencia(miAsistencia);
+
+      // Detalle de MIS casillas: cuenta = si entra al promedio
+      const detalle = {};
+      for (const dimension of DIMENSIONES) {
+        detalle[dimension] = ctx.casillas
+          .filter((c) => c.dimension === dimension)
+          .map((c) => {
+            if (c.esAsistencia) {
+              return { nombre: 'Asistencia', esAsistencia: true, valor: valorAsis, cuenta: valorAsis !== null, asistencia: miAsistencia };
+            }
+            const cuenta = ctx.casillasCalificadas.has(c.id);
+            const propio = misValores.get(c.id);
+            return { nombre: c.nombre, orden: c.orden, esAsistencia: false, valor: cuenta ? (propio ?? 0) : null, cuenta };
+          });
+      }
+
+      const nota = ctx.notasPorEstudiante.get(estudiante.id);
+      const porTrimestre = { 1: null, 2: null, 3: null };
+      for (const n of notasDelAnio.filter((x) => x.materiaProgramadaId === p.id)) porTrimestre[n.trimestre] = n.total;
+      const totales = Object.values(porTrimestre).filter((t) => t !== null);
+
+      materias.push({
+        materiaProgramadaId: p.id,
+        materia: p.materia.nombre,
+        docente: p.docente?.usuario?.nombre || null,
+        nota: nota ? {
+          ser: nota.ser, saber: nota.saber, hacer: nota.hacer,
+          autoevaluacion: nota.autoevaluacion, total: nota.total, aprobado: nota.aprobado,
+        } : null,
+        detalle,
+        trimestres: porTrimestre,
+        anual: { nota: notaAnual(totales), trimestresConNota: totales.length, parcial: totales.length < 3 },
+      });
+    }
+
+    const config = await prisma.configuracion.findFirst();
+    res.json({
+      gestion,
+      trimestre,
+      trimestreActivo: activo?.trimestre ?? null,
+      umbralAprobacion: config?.umbralAprobacion || 51,
+      materias,
+    });
   } catch (error) {
     console.error('Error en getMisNotas:', error);
     res.status(500).json({ error: 'Error al obtener notas' });

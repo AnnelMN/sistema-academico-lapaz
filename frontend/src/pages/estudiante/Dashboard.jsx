@@ -9,6 +9,7 @@ const EstudianteDashboard = () => {
   const { user } = useAuth();
   
   const [notas, setNotas]           = useState([]);
+  const [trimestreNotas, setTrimestreNotas] = useState(null);
   const [asistencia, setAsistencia] = useState([]);
   const [prediccion, setPrediccion] = useState(null);
   const [horario, setHorario]       = useState([]);
@@ -18,12 +19,16 @@ const EstudianteDashboard = () => {
     const cargarDashboard = async () => {
       try {
         const [notasData, asistenciaData, prediccionData, horarioData] = await Promise.all([
-          estudianteService.getMisNotas(1),
+          estudianteService.getMisNotas(), // trimestre activo
           estudianteService.getMiAsistencia(),
           estudianteService.getMiPrediccion(),
           estudianteService.getMiHorario()
         ]);
-        setNotas(notasData);
+        // Solo las materias que ya tienen nota en el trimestre
+        setNotas((notasData?.materias || [])
+          .filter((m) => m.nota)
+          .map((m) => ({ id: m.materiaProgramadaId, materia: m.materia, total: m.nota.total, aprobado: m.nota.aprobado })));
+        setTrimestreNotas(notasData?.trimestre ?? null);
         setAsistencia(asistenciaData);
         setPrediccion(prediccionData);
         setHorario(horarioData);
@@ -36,11 +41,9 @@ const EstudianteDashboard = () => {
     cargarDashboard();
   }, []);
 
-  const calcularEstadoNota = (total) => {
-    if (total >= 51) return { label: 'Aprobado', cls: 'ios-badge ios-badge-success' };
-    if (total >= 40) return { label: 'Atención', cls: 'ios-badge ios-badge-warning' };
-    return { label: 'En riesgo', cls: 'ios-badge ios-badge-danger' };
-  };
+  const calcularEstadoNota = (aprobado) => (aprobado
+    ? { label: 'Aprobado', cls: 'ios-badge ios-badge-success' }
+    : { label: 'Reprobado', cls: 'ios-badge ios-badge-danger' });
 
   if (loading) {
     return (
@@ -55,7 +58,7 @@ const EstudianteDashboard = () => {
   const promedioGeneral = notas.length > 0
     ? Math.round(notas.reduce((acc, curr) => acc + curr.total, 0) / notas.length)
     : 0;
-  const materiasAprobadas = notas.filter(n => n.total >= 51).length;
+  const materiasAprobadas = notas.filter(n => n.aprobado).length;
   const asistenciaGlobal  = asistencia.length > 0
     ? Math.round(asistencia.reduce((acc, curr) => acc + curr.porcentaje, 0) / asistencia.length)
     : 0;
@@ -188,7 +191,7 @@ const EstudianteDashboard = () => {
         {/* Notas */}
         <div className="ios-card p-5">
           <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
-            Mis notas — Trimestre 1
+            Mis notas — Trimestre {trimestreNotas ?? '—'}
           </div>
           <div>
             {notas.length === 0 ? (
@@ -197,15 +200,15 @@ const EstudianteDashboard = () => {
               </div>
             ) : (
               notas.map((nota, idx) => {
-                const estado = calcularEstadoNota(nota.total);
+                const estado = calcularEstadoNota(nota.aprobado);
                 return (
                   <div
-                    key={idx}
+                    key={nota.id}
                     className="flex justify-between items-center py-3"
                     style={{ borderBottom: idx < notas.length - 1 ? '1px solid var(--ios-separator-2)' : 'none' }}
                   >
                     <span className="text-[13px] font-medium" style={{ color: 'var(--ios-label)' }}>
-                      {nota.materiaProgramada.materia.nombre}
+                      {nota.materia}
                     </span>
                     <div className="flex gap-2 items-center">
                       <span className="text-[13px] font-bold" style={{ color: 'var(--ios-label)' }}>
