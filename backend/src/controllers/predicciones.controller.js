@@ -1,4 +1,10 @@
 const prisma = require('../lib/prisma');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+
+// GET /api/predicciones/estado — cualquier usuario autenticado puede saber si están disponibles
+const getEstadoPredicciones = (req, res) => {
+  res.json(iaHabilitada() ? { disponible: true } : PREDICCION_NO_DISPONIBLE);
+};
 
 const RIESGO_ORDEN = {
   RIESGO_ALTO: 0,
@@ -8,6 +14,11 @@ const RIESGO_ORDEN = {
 
 const getPrediccionesEstudiantes = async (req, res) => {
   try {
+    // Predicciones pausadas: no se envían datos de riesgo
+    if (!iaHabilitada()) {
+      return res.json(PREDICCION_NO_DISPONIBLE);
+    }
+
     const { cursoId, nivelRiesgo, trimestre } = req.query;
 
     const predicciones = await prisma.prediccionRiesgo.findMany({
@@ -74,5 +85,6 @@ const getPrediccionesEstudiantes = async (req, res) => {
 };
 
 module.exports = {
+  getEstadoPredicciones,
   getPrediccionesEstudiantes,
 };

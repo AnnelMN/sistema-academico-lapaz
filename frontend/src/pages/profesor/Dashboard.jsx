@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import SidebarLayout from '../../components/layout/SidebarLayout';
 import { useAuth } from '../../context/AuthContext';
-import { Download, Calendar, AlertTriangle } from 'lucide-react';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import { Download, Calendar } from 'lucide-react';
 
 // Mock data based on the design
 const estudiantesAsistencia = [
@@ -165,17 +166,8 @@ const ProfesorDashboard = () => {
           </table>
         </div>
 
-        {/* IA Alert Banner */}
-        <div
-          className="flex items-center gap-3 p-4 rounded-2xl"
-          style={{ backgroundColor: 'var(--ios-orange-light)' }}
-        >
-          <AlertTriangle size={18} style={{ color: 'var(--ios-orange)', flexShrink: 0 }} />
-          <div className="text-[12px]" style={{ color: '#A05800' }}>
-            <span className="font-semibold mr-1">Aviso de riesgo:</span>
-            El sistema ha detectado 2 estudiantes con tendencia de inasistencia crítica. Se sugiere revisión pedagógica.
-          </div>
-        </div>
+        {/* Aviso IA: las predicciones están pausadas hasta contar con un modelo válido */}
+        <PrediccionNoDisponible compacto />
       </div>
     </SidebarLayout>
   );

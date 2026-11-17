@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const { getPrediccionesEstudiantes } = require('../controllers/predicciones.controller');
+const { getEstadoPredicciones, getPrediccionesEstudiantes } = require('../controllers/predicciones.controller');
 
-router.use(authMiddleware(['DIRECTOR']));
+// Estado de las predicciones: cualquier usuario autenticado
+router.get('/estado', authMiddleware(), getEstadoPredicciones);
 
-router.get('/estudiantes', getPrediccionesEstudiantes);
+// Predicciones de todos los estudiantes: solo Director
+router.get('/estudiantes', authMiddleware(['DIRECTOR']), getPrediccionesEstudiantes);
 
 module.exports = router;

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrainCircuit, AlertTriangle, Info, CheckCircle, Activity, BookOpen } from 'lucide-react';
 import estudianteService from '../../services/estudiante.service';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import { prediccionNoDisponible } from '../../constants/ia';
 
 const riesgoConfig = {
   RIESGO_ALTO: {
@@ -81,6 +83,19 @@ const Prediccion = () => {
     return (
       <div className="flex items-center justify-center h-48">
         <div className="text-[14px]" style={{ color: 'var(--ios-secondary)' }}>Analizando datos académicos...</div>
+      </div>
+    );
+  }
+
+  if (prediccionNoDisponible(prediccion)) {
+    return (
+      <div className="space-y-5 max-w-4xl">
+        <div>
+          <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+            Mi Predicción de Rendimiento
+          </h2>
+        </div>
+        <PrediccionNoDisponible />
       </div>
     );
   }

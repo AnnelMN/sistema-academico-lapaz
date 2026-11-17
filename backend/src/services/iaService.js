@@ -7,6 +7,12 @@ const iaHabilitada = () => process.env.IA_HABILITADA === 'true';
 
 exports.iaHabilitada = iaHabilitada;
 
+// Respuesta común cuando las predicciones están pausadas (no se envía ningún dato de riesgo)
+exports.PREDICCION_NO_DISPONIBLE = Object.freeze({
+  disponible: false,
+  mensaje: 'Predicción no disponible por ahora',
+});
+
 exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
   if (!iaHabilitada()) {
     return null;

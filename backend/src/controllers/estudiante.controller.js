@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
 
 // Obtener el perfil del estudiante autenticado
 const getEstudiantePerfil = async (usuarioId) => {
@@ -115,6 +116,11 @@ exports.getMiAsistencia = async (req, res) => {
 // 4. Obtener última predicción de riesgo IA
 exports.getMiPrediccion = async (req, res) => {
   try {
+    // Predicciones pausadas: no se envían datos de riesgo
+    if (!iaHabilitada()) {
+      return res.json({ ...PREDICCION_NO_DISPONIBLE, nivelRiesgo: 'NO_DISPONIBLE' });
+    }
+
     const estudiante = await getEstudiantePerfil(req.user.id);
 
     const prediccion = await prisma.prediccionRiesgo.findFirst({

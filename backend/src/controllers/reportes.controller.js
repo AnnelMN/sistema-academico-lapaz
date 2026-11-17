@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
 
 const getReporteConsolidado = async (req, res) => {
   try {
@@ -34,7 +35,9 @@ const getReporteConsolidado = async (req, res) => {
 
     const estudianteIds = [...new Set(notas.map((n) => n.estudianteId))];
 
-    const predicciones = await prisma.prediccionRiesgo.findMany({
+    // Predicciones pausadas: no se consultan ni se envían datos de riesgo
+    const prediccionesDisponibles = iaHabilitada();
+    const predicciones = !prediccionesDisponibles ? [] : await prisma.prediccionRiesgo.findMany({
       where: {
         estudianteId: { in: estudianteIds.length ? estudianteIds : [] },
         ...(trimestre ? { trimestre: parseInt(trimestre) } : {}),
@@ -94,7 +97,9 @@ const getReporteConsolidado = async (req, res) => {
       aprobados,
       reprobados,
       asistenciaPromedio: Math.round(asistenciaPromedio * 100) / 100,
-      riesgoAlto: riesgoAltoIds.size,
+      riesgoAlto: prediccionesDisponibles ? riesgoAltoIds.size : null,
+      prediccionesDisponibles,
+      ...(prediccionesDisponibles ? {} : { mensajePredicciones: PREDICCION_NO_DISPONIBLE.mensaje }),
       umbralAprobacion,
       gestion: gestionReporte,
       trimestre: trimestre ? parseInt(trimestre) : null,
@@ -133,7 +138,7 @@ const getReporteConsolidado = async (req, res) => {
         promedio: g.notas > 0 ? Math.round((g.suma / g.notas) * 100) / 100 : 0,
         aprobados: g.aprobados,
         reprobados: g.reprobados,
-        riesgoAlto: g.riesgoAlto,
+        riesgoAlto: prediccionesDisponibles ? g.riesgoAlto : null,
       }));
     };
 

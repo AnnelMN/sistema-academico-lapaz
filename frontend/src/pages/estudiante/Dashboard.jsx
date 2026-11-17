@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import estudianteService from '../../services/estudiante.service';
 import { Activity, BookOpen, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import { prediccionNoDisponible } from '../../constants/ia';
 
 const EstudianteDashboard = () => {
   const { user } = useAuth();
@@ -61,7 +63,9 @@ const EstudianteDashboard = () => {
   // Badge de predicción
   let riesgoLabel = 'Sin evaluar';
   let riesgoCls   = 'ios-badge ios-badge-neutral';
-  if (prediccion?.nivelRiesgo === 'RIESGO_ALTO') {
+  if (prediccionNoDisponible(prediccion)) {
+    riesgoLabel = 'No disponible';
+  } else if (prediccion?.nivelRiesgo === 'RIESGO_ALTO') {
     riesgoLabel = 'Riesgo alto'; riesgoCls = 'ios-badge ios-badge-danger';
   } else if (prediccion?.nivelRiesgo === 'RIESGO_MEDIO') {
     riesgoLabel = 'Riesgo medio'; riesgoCls = 'ios-badge ios-badge-warning';
@@ -71,6 +75,9 @@ const EstudianteDashboard = () => {
 
   // Tarjeta de alerta IA
   const renderAlertaIA = () => {
+    if (prediccionNoDisponible(prediccion)) {
+      return <PrediccionNoDisponible compacto />;
+    }
     if (!prediccion || prediccion.nivelRiesgo === 'SIN_EVALUAR') {
       return (
         <div className="p-3 rounded-xl text-[12px]" style={{ backgroundColor: 'var(--ios-bg)', color: 'var(--ios-secondary)' }}>

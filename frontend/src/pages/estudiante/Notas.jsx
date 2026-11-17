@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Download, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import estudianteService from '../../services/estudiante.service';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import { prediccionNoDisponible } from '../../constants/ia';
 
 const getStatusInfo = (total) => {
   if (total >= 51) return { label: 'Aprobado', cls: 'ios-badge ios-badge-success' };
@@ -121,7 +123,12 @@ const Notas = () => {
       </div>
 
       {/* Bloque IA */}
-      {prediccion && prediccion.nivelRiesgo !== 'SIN_EVALUAR' && (
+      {prediccionNoDisponible(prediccion) && (
+        <div className="print:hidden">
+          <PrediccionNoDisponible compacto />
+        </div>
+      )}
+      {prediccion && !prediccionNoDisponible(prediccion) && prediccion.nivelRiesgo !== 'SIN_EVALUAR' && (
         <div
           className="ios-card p-5 flex items-start gap-4 print:hidden"
         >

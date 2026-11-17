@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getDirectorDashboard } from '../../services/academico.service';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
 
 const riskBadgeClass = {
   Alto: 'ios-badge ios-badge-danger',
@@ -66,8 +67,8 @@ const DirectorDashboard = () => {
     },
     {
       label: 'En riesgo alto',
-      value: dashboard.riesgoAlto,
-      badge: 'Última predicción',
+      value: dashboard.prediccionesDisponibles === false ? '—' : dashboard.riesgoAlto,
+      badge: dashboard.prediccionesDisponibles === false ? 'No disponible por ahora' : 'Última predicción',
       badgeClass: 'ios-badge ios-badge-danger',
     },
     {
@@ -147,7 +148,9 @@ const DirectorDashboard = () => {
           <div className="text-[13px] font-semibold mb-4" style={{ color: 'var(--ios-label)' }}>
             Estudiantes en riesgo
           </div>
-          {dashboard.estudiantesRiesgo.length === 0 ? (
+          {dashboard.prediccionesDisponibles === false ? (
+            <PrediccionNoDisponible compacto />
+          ) : dashboard.estudiantesRiesgo.length === 0 ? (
             <p className="text-[12px]" style={{ color: 'var(--ios-secondary)' }}>
               No hay estudiantes con alertas de riesgo en la última predicción.
             </p>

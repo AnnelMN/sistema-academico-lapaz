@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
 
 // MATERIAS
 const getMaterias = async (req, res) => {
@@ -115,6 +116,7 @@ const getDirectorDashboard = async (req, res) => {
     const gestion = config?.gestionActual || new Date().getFullYear();
     const trimestre = config?.trimestreActivo || 1;
     const umbral = config?.umbralAprobacion || 51;
+    const prediccionesDisponibles = iaHabilitada();
 
     const [totalEstudiantes, cursos, notas, asistencias, predicciones] = await Promise.all([
       prisma.estudiante.count({ where: { usuario: { activo: true } } }),
@@ -135,7 +137,8 @@ const getDirectorDashboard = async (req, res) => {
         },
       }),
       prisma.asistencia.findMany({ select: { estado: true } }),
-      prisma.prediccionRiesgo.findMany({
+      // Predicciones pausadas: no se consultan ni se envían datos de riesgo
+      !prediccionesDisponibles ? Promise.resolve([]) : prisma.prediccionRiesgo.findMany({
         orderBy: { generadoEn: 'desc' },
         select: {
           estudianteId: true,
@@ -194,9 +197,9 @@ const getDirectorDashboard = async (req, res) => {
     }
 
     const latest = [...latestPredictions.values()];
-    const riesgoAlto = latest.filter(
-      (prediccion) => prediccion.nivelRiesgo === 'RIESGO_ALTO'
-    ).length;
+    const riesgoAlto = prediccionesDisponibles
+      ? latest.filter((prediccion) => prediccion.nivelRiesgo === 'RIESGO_ALTO').length
+      : null;
 
     const estudiantesRiesgo = latest
       .filter((prediccion) => prediccion.nivelRiesgo !== 'SIN_RIESGO')
@@ -236,6 +239,8 @@ const getDirectorDashboard = async (req, res) => {
       riesgoAlto,
       cursos: cursosDashboard,
       estudiantesRiesgo,
+      prediccionesDisponibles,
+      ...(prediccionesDisponibles ? {} : { mensajePredicciones: PREDICCION_NO_DISPONIBLE.mensaje }),
     });
   } catch (error) {
     console.error('Error fetching director dashboard:', error);

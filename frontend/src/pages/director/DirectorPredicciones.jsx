@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, AlertCircle, Info, FileText } from 'lucide-react';
 import { getCursos } from '../../services/academico.service';
 import { getPrediccionesEstudiantes } from '../../services/predictions.service';
+import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import { prediccionNoDisponible } from '../../constants/ia';
 
 const RIESGO_CONFIG = {
   RIESGO_ALTO:   { label: 'Riesgo Alto',   class: 'bg-red-100 text-red-700' },
@@ -22,6 +24,7 @@ export default function DirectorPredicciones() {
   const [filtros, setFiltros] = useState({ cursoId: '', nivelRiesgo: '', trimestre: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [noDisponible, setNoDisponible] = useState(false);
 
   useEffect(() => {
     const cargarCursos = async () => {
@@ -44,7 +47,13 @@ export default function DirectorPredicciones() {
       if (filtros.nivelRiesgo) params.nivelRiesgo = filtros.nivelRiesgo;
       if (filtros.trimestre) params.trimestre = filtros.trimestre;
       const data = await getPrediccionesEstudiantes(params);
-      setPredicciones(data || []);
+      if (prediccionNoDisponible(data)) {
+        setNoDisponible(true);
+        setPredicciones([]);
+      } else {
+        setNoDisponible(false);
+        setPredicciones(data || []);
+      }
     } catch (err) {
       console.error('Error cargando predicciones:', err);
       setError(err.response?.data?.error || 'No se pudieron cargar las predicciones');
@@ -83,6 +92,17 @@ export default function DirectorPredicciones() {
         style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}
       >
         {error}
+      </div>
+    );
+  }
+
+  if (noDisponible) {
+    return (
+      <div className="space-y-5">
+        <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
+          Predicciones de riesgo
+        </h2>
+        <PrediccionNoDisponible />
       </div>
     );
   }

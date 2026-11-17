@@ -227,7 +227,7 @@ export default function DirectorReportes() {
           { label: 'Aprobados', value: resumen?.aprobados ?? 0 },
           { label: 'Reprobados', value: resumen?.reprobados ?? 0 },
           { label: 'Asistencia media', value: resumen?.asistenciaPromedio ?? 0 },
-          { label: 'Riesgo Alto', value: resumen?.riesgoAlto ?? 0 },
+          { label: 'Riesgo Alto', value: resumen?.prediccionesDisponibles === false ? 'No disponible' : (resumen?.riesgoAlto ?? 0) },
           { label: 'Umbral aprobación', value: resumen?.umbralAprobacion ?? 0 },
         ].map(({ label, value }) => (
           <div key={label} className="ios-card p-4 text-center">
@@ -269,7 +269,7 @@ export default function DirectorReportes() {
                     <td className="px-4 py-3 text-center text-[12px]">{c.promedio}</td>
                     <td className="px-4 py-3 text-center text-[12px]">{c.aprobados}</td>
                     <td className="px-4 py-3 text-center text-[12px]">{c.reprobados}</td>
-                    <td className="px-4 py-3 text-center text-[12px]">{c.riesgoAlto}</td>
+                    <td className="px-4 py-3 text-center text-[12px]">{c.riesgoAlto ?? '—'}</td>
                   </tr>
                 ))
               )}
@@ -304,7 +304,7 @@ export default function DirectorReportes() {
                     <td className="px-4 py-3 text-center text-[12px]">{m.promedio}</td>
                     <td className="px-4 py-3 text-center text-[12px]">{m.aprobados}</td>
                     <td className="px-4 py-3 text-center text-[12px]">{m.reprobados}</td>
-                    <td className="px-4 py-3 text-center text-[12px]">{m.riesgoAlto}</td>
+                    <td className="px-4 py-3 text-center text-[12px]">{m.riesgoAlto ?? '—'}</td>
                   </tr>
                 ))
               )}
