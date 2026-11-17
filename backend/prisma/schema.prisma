@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -36,6 +36,13 @@ enum TipoNotificacion {
   EXCESO_FALTAS
 }
 
+// Dimensiones que se califican por casillas (la AUTOEVALUACIÓN es un solo valor en Nota)
+enum Dimension {
+  SER
+  SABER
+  HACER
+}
+
 // ─────────────────────────────────────────────
 // TABLA 1: Usuario
 // ─────────────────────────────────────────────
@@ -51,7 +58,7 @@ model Usuario {
 
   // --- 2FA TOTP (Google Authenticator) ---
   twoFactorSecret  String?
-  twoFactorEnabled Boolean  @default(false)
+  twoFactorEnabled Boolean @default(false)
 
   estudiante Estudiante?
   docente    Docente?
@@ -77,6 +84,7 @@ model Estudiante {
   asistencias    Asistencia[]
   predicciones   PrediccionRiesgo[]
   notificaciones Notificacion[]
+  calificaciones CalificacionCasilla[]
 
   @@map("estudiantes")
 }
@@ -140,12 +148,16 @@ model MateriaProgramada {
 
   notas       Nota[]
   asistencias Asistencia[]
+  casillas    Casilla[]
 
   @@map("materias_programadas")
 }
 
 // ─────────────────────────────────────────────
-// TABLA 7: Nota
+// TABLA 7: Nota — RESUMEN del trimestre, calculado por el servidor
+// SER (0–10) + SABER (0–45) + HACER (0–40) + AUTOEVALUACIÓN (0–5) = total (0–100)
+// SER, SABER y HACER salen del promedio de sus casillas, redondeado a entero.
+// La autoevaluación la registra el docente (null = aún no registrada).
 // ─────────────────────────────────────────────
 model Nota {
   id                  String            @id @default(uuid())
@@ -154,13 +166,14 @@ model Nota {
   materiaProgramadaId String
   materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
   trimestre           Int
-  ser                 Float
-  saber               Float
-  hacer               Float
-  total               Float
+  ser                 Int
+  saber               Int
+  hacer               Int
+  autoevaluacion      Int?
+  total               Int
   aprobado            Boolean
-  creadoEn            DateTime @default(now())
-  actualizadoEn       DateTime @updatedAt
+  creadoEn            DateTime          @default(now())
+  actualizadoEn       DateTime          @updatedAt
 
   @@unique([estudianteId, materiaProgramadaId, trimestre])
   @@map("notas")
@@ -177,7 +190,7 @@ model Asistencia {
   materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
   fecha               DateTime
   estado              EstadoAsistencia
-  creadoEn            DateTime @default(now())
+  creadoEn            DateTime          @default(now())
 
   @@unique([estudianteId, materiaProgramadaId, fecha])
   @@map("asistencias")
@@ -195,7 +208,7 @@ model PrediccionRiesgo {
   promedioNotas        Float
   porcentajeAsistencia Float
   trimestre            Int
-  generadoEn           DateTime @default(now())
+  generadoEn           DateTime    @default(now())
 
   @@map("predicciones_riesgo")
 }
@@ -211,9 +224,71 @@ model Notificacion {
   emailDestino String
   estadoEnvio  String
   mensaje      String?
-  enviadoEn    DateTime @default(now())
+  enviadoEn    DateTime         @default(now())
 
   @@map("notificaciones")
+}
+
+// ─────────────────────────────────────────────
+// TABLA NUEVA: Casilla — columnas que el docente define por materia,
+// trimestre y dimensión (máximo 20 por dimensión). En SER, una casilla es
+// siempre la de asistencia (esAsistencia = true): su valor no se guarda,
+// se calcula con los registros de asistencia de esa materia y trimestre.
+// ─────────────────────────────────────────────
+model Casilla {
+  id                  String            @id @default(uuid())
+  materiaProgramadaId String
+  materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
+  trimestre           Int
+  dimension           Dimension
+  orden               Int
+  nombre              String?
+  esAsistencia        Boolean           @default(false)
+  creadoEn            DateTime          @default(now())
+  actualizadoEn       DateTime          @updatedAt
+
+  calificaciones CalificacionCasilla[]
+
+  @@unique([materiaProgramadaId, trimestre, dimension, orden])
+  @@index([materiaProgramadaId, trimestre])
+  @@map("casillas")
+}
+
+// ─────────────────────────────────────────────
+// TABLA NUEVA: CalificacionCasilla — nota (entero 0–100) de un estudiante
+// en una casilla. Si se elimina la casilla, se eliminan sus notas.
+// ─────────────────────────────────────────────
+model CalificacionCasilla {
+  id              String     @id @default(uuid())
+  casillaId       String
+  casilla         Casilla    @relation(fields: [casillaId], references: [id], onDelete: Cascade)
+  estudianteId    String
+  estudiante      Estudiante @relation(fields: [estudianteId], references: [id])
+  valor           Int
+  registradoPorId String
+  creadoEn        DateTime   @default(now())
+  actualizadoEn   DateTime   @updatedAt
+
+  @@unique([casillaId, estudianteId])
+  @@index([estudianteId])
+  @@map("calificaciones_casilla")
+}
+
+// ─────────────────────────────────────────────
+// TABLA NUEVA: PeriodoTrimestral — fechas de cada trimestre por gestión,
+// configuradas por el Director. Definen el trimestre de cada asistencia
+// (por su fecha) y cuál es el trimestre activo (el que contiene la fecha de hoy).
+// ─────────────────────────────────────────────
+model PeriodoTrimestral {
+  id            String   @id @default(uuid())
+  gestion       Int
+  trimestre     Int
+  fechaInicio   DateTime @db.Date
+  fechaFin      DateTime @db.Date
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([gestion, trimestre])
+  @@map("periodos_trimestrales")
 }
 
 // ─────────────────────────────────────────────
@@ -225,7 +300,7 @@ model Configuracion {
   umbralAprobacion Int      @default(51)
   trimestreActivo  Int      @default(1)
   gestionActual    Int      @default(2026)
-  actualizadoEn DateTime @updatedAt
+  actualizadoEn    DateTime @updatedAt
 
   @@map("configuracion")
 }
