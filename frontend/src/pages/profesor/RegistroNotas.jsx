@@ -1,260 +1,250 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Save, AlertCircle, CheckCircle, Info, Lock } from 'lucide-react';
 import SidebarLayout from '../../components/layout/SidebarLayout';
-import { getMisMaterias, getNotasEstudiantes, upsertNota } from '../../services/notas.service';
-import { Save, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import PlanillaNotas from '../../components/notas/PlanillaNotas';
+import ConfiguradorCasillas from '../../components/notas/ConfiguradorCasillas';
+import { getMisMaterias, getPeriodoActual, getPlanilla, guardarCalificaciones } from '../../services/notas.service';
+import { leerEntero, MAX_AUTOEVALUACION } from '../../utils/calculoNotas';
 
-const RegistroNotas = () => {
-  const [materias, setMaterias] = useState([]);
-  const [trimestre, setTrimestre] = useState('1');
-  const [materiaId, setMateriaId] = useState('');
-  const [estudiantes, setEstudiantes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
+// Registro de notas por casillas (escala SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5).
+// El docente configura sus casillas, califica de 0 a 100 y registra la autoevaluación (0 a 5).
+// Los subtotales y el total se ven al instante; al guardar, el servidor recalcula.
 
-  const menuGroups = [
-    {
-      title: 'Mi Panel',
-      items: [
-        { label: 'Dashboard', path: '/profesor', dotColor: 'bg-[#60a5fa]' },
-        { label: 'Registrar notas', path: '/profesor/notas', dotColor: 'bg-[#fb923c]', exact: true },
-        { label: 'Asistencia', path: '/profesor/asistencia', dotColor: 'bg-[#34d399]' },
-      ]
-    },
-    {
-      title: 'Consultas',
-      items: [
-        { label: 'Predicción IA', path: '/profesor/predicciones', dotColor: 'bg-[#a78bfa]' },
-        { label: 'Mi horario', path: '/profesor/horario', dotColor: 'bg-[#fbbf24]' },
-        { label: 'Reportes', path: '/profesor/reportes', dotColor: 'bg-[#9ca3af]' },
-      ]
+const menuGroups = [
+  {
+    title: 'Mi Panel',
+    items: [
+      { label: 'Dashboard', path: '/profesor', dotColor: 'bg-[#60a5fa]' },
+      { label: 'Registrar notas', path: '/profesor/notas', dotColor: 'bg-[#fb923c]', exact: true },
+      { label: 'Asistencia', path: '/profesor/asistencia', dotColor: 'bg-[#34d399]' },
+    ],
+  },
+  {
+    title: 'Consultas',
+    items: [
+      { label: 'Predicción IA', path: '/profesor/predicciones', dotColor: 'bg-[#a78bfa]' },
+      { label: 'Mi horario', path: '/profesor/horario', dotColor: 'bg-[#fbbf24]' },
+      { label: 'Reportes', path: '/profesor/reportes', dotColor: 'bg-[#9ca3af]' },
+    ],
+  },
+];
+
+const ETIQUETA_TRIMESTRE = { 1: '1.er', 2: '2.º', 3: '3.er' };
+
+const fechaCorta = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+
+// Compara el borrador con lo guardado y arma lo que hay que enviar
+function calcularPendientes(planilla, cambios) {
+  const resultado = { calificaciones: [], autoevaluaciones: [], invalidos: 0 };
+  if (!planilla) return resultado;
+  const porId = new Map(planilla.estudiantes.map((e) => [e.id, e]));
+  for (const [clave, texto] of Object.entries(cambios)) {
+    if (clave.startsWith('auto|')) {
+      const estudianteId = clave.slice(5);
+      const valor = leerEntero(texto, MAX_AUTOEVALUACION);
+      if (Number.isNaN(valor)) { resultado.invalidos += 1; continue; }
+      if (valor !== (porId.get(estudianteId)?.autoevaluacion ?? null)) {
+        resultado.autoevaluaciones.push({ estudianteId, valor });
+      }
+    } else {
+      const [estudianteId, casillaId] = clave.split('|');
+      const valor = leerEntero(texto, 100);
+      if (Number.isNaN(valor)) { resultado.invalidos += 1; continue; }
+      if (valor !== (porId.get(estudianteId)?.valores[casillaId] ?? null)) {
+        resultado.calificaciones.push({ estudianteId, casillaId, valor });
+      }
     }
-  ];
+  }
+  return resultado;
+}
 
+export default function RegistroNotas() {
+  const [materias, setMaterias] = useState([]);
+  const [periodo, setPeriodo] = useState(null);
+  const [materiaId, setMateriaId] = useState('');
+  const [trimestre, setTrimestre] = useState(null); // null = trimestre activo
+  const [planilla, setPlanilla] = useState(null);
+  const [cambios, setCambios] = useState({});
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState(null);
+
+  // Materias del docente y trimestre activo
   useEffect(() => {
-    fetchMaterias();
+    let vigente = true;
+    Promise.all([getMisMaterias(), getPeriodoActual()])
+      .then(([lista, actual]) => {
+        if (!vigente) return;
+        setMaterias(lista || []);
+        setPeriodo(actual);
+        if (lista?.length) setMateriaId(lista[0].id);
+      })
+      .catch(() => vigente && setMensaje({ tipo: 'error', texto: 'No se pudieron cargar tus materias' }));
+    return () => { vigente = false; };
   }, []);
 
-  const fetchMaterias = async () => {
-    try {
-      const data = await getMisMaterias();
-      setMaterias(data);
-      if (data.length > 0) setMateriaId(data[0].id);
-    } catch (error) {
-      console.error('Error fetching materias:', error);
-    }
-  };
-
+  // Planilla de la materia y trimestre elegidos
   useEffect(() => {
-    if (materiaId && trimestre) {
-      fetchNotas();
-    }
+    if (!materiaId) return undefined;
+    let vigente = true;
+    getPlanilla(materiaId, trimestre)
+      .then((datos) => vigente && setPlanilla(datos))
+      .catch((err) => vigente && setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'No se pudo cargar la planilla' }));
+    return () => { vigente = false; };
   }, [materiaId, trimestre]);
 
-  const fetchNotas = async () => {
-    try {
-      setLoading(true);
-      const data = await getNotasEstudiantes(materiaId, trimestre);
-      setEstudiantes(data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching notas:', error);
-      setLoading(false);
+  const cargando = !planilla || planilla.materiaProgramadaId !== materiaId || (trimestre !== null && planilla.trimestre !== trimestre);
+  const pendientes = useMemo(() => calcularPendientes(planilla, cambios), [planilla, cambios]);
+  const cantidadCambios = pendientes.calificaciones.length + pendientes.autoevaluaciones.length;
+  const hayBorrador = cantidadCambios > 0 || pendientes.invalidos > 0;
+
+  const alCambiar = (clave, texto) => {
+    setCambios((c) => ({ ...c, [clave]: texto }));
+    setMensaje(null);
+  };
+
+  const guardar = async () => {
+    if (pendientes.invalidos > 0) {
+      setMensaje({ tipo: 'error', texto: `Hay ${pendientes.invalidos} casilla(s) con valores no válidos (casillas: 0 a 100; autoevaluación: 0 a 5)` });
+      return;
     }
-  };
-
-  const handleNotaChange = (index, field, value) => {
-    const updated = [...estudiantes];
-    const numValue = value === '' ? 0 : parseFloat(value);
-    
-    // Validaciones de rango
-    if (field === 'ser' && (numValue < 0 || numValue > 15)) return;
-    if (field === 'saber' && (numValue < 0 || numValue > 35)) return;
-    if (field === 'hacer' && (numValue < 0 || numValue > 50)) return;
-
-    updated[index][field] = value === '' ? '' : numValue;
-    
-    // Recalcular total
-    const ser = updated[index].ser || 0;
-    const saber = updated[index].saber || 0;
-    const hacer = updated[index].hacer || 0;
-    updated[index].total = ser + saber + hacer;
-    
-    setEstudiantes(updated);
-  };
-
-  const getEstado = (total) => {
-    if (total >= 51) return { label: 'Aprobado', class: 'bg-green-100 text-green-700' };
-    if (total >= 40) return { label: 'Atención', class: 'bg-amber-100 text-amber-700' };
-    return { label: 'Riesgo', class: 'bg-red-100 text-red-700' };
-  };
-
-  const handleSave = async () => {
+    setGuardando(true);
+    setMensaje({ tipo: 'info', texto: 'Guardando notas…' });
     try {
-      setSaving(true);
-      setMessage({ type: 'info', text: 'Guardando cambios...' });
-      
-      const promises = estudiantes.map(est => upsertNota({
-        estudianteId: est.id,
+      const nueva = await guardarCalificaciones({
         materiaProgramadaId: materiaId,
-        trimestre: parseInt(trimestre),
-        ser: est.ser || 0,
-        saber: est.saber || 0,
-        hacer: est.hacer || 0
-      }));
-
-      await Promise.all(promises);
-      
-      setMessage({ type: 'success', text: 'Notas guardadas correctamente' });
-      setSaving(false);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Error saving notas:', error);
-      setMessage({ type: 'error', text: 'Error al guardar las notas' });
-      setSaving(false);
+        calificaciones: pendientes.calificaciones,
+        autoevaluaciones: pendientes.autoevaluaciones,
+      });
+      setPlanilla(nueva);
+      setCambios({});
+      setMensaje({ tipo: 'exito', texto: `Notas guardadas (${cantidadCambios} cambio${cantidadCambios === 1 ? '' : 's'})` });
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'No se pudieron guardar las notas' });
+    } finally {
+      setGuardando(false);
     }
   };
+
+  const materiaActual = materias.find((m) => m.id === materiaId);
 
   return (
     <SidebarLayout
       menuGroups={menuGroups}
       sidebarColor="bg-[#8B0000]"
       headerTitle="Registro de Calificaciones"
-      headerSubtitle="Gestión de notas por trimestre — Escala 15+35+50"
+      headerSubtitle="SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5 — casillas de 0 a 100"
     >
-      <div className="space-y-6">
-        
-        {/* Filters and Actions */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Materia y Curso</label>
-            <select 
-              value={materiaId} 
-              onChange={(e) => setMateriaId(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-red-500 bg-white"
+      <div className="space-y-5">
+        {/* Filtros */}
+        <div className="ios-card p-4 flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[220px]">
+            <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--ios-secondary)' }}>Materia y curso</label>
+            <select
+              value={materiaId}
+              disabled={hayBorrador}
+              onChange={(e) => { setMateriaId(e.target.value); setCambios({}); setMensaje(null); }}
+              className="ios-input w-full text-[12px]"
             >
-              {materias.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.curso.nivel}ro {m.curso.paralelo} — {m.materia.nombre}
-                </option>
+              {materias.map((m) => (
+                <option key={m.id} value={m.id}>{m.curso.nivel}° {m.curso.paralelo} — {m.materia.nombre}</option>
               ))}
             </select>
           </div>
-          <div className="w-32">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trimestre</label>
-            <select 
-              value={trimestre} 
-              onChange={(e) => setTrimestre(e.target.value)}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-red-500 bg-white"
+          <div className="w-44">
+            <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--ios-secondary)' }}>Trimestre</label>
+            <select
+              value={trimestre ?? planilla?.trimestre ?? ''}
+              disabled={hayBorrador || !planilla}
+              onChange={(e) => { setTrimestre(Number(e.target.value)); setCambios({}); setMensaje(null); }}
+              className="ios-input w-full text-[12px]"
             >
-              <option value="1">1er Trimestre</option>
-              <option value="2">2do Trimestre</option>
-              <option value="3">3er Trimestre</option>
+              {[1, 2, 3].map((t) => (
+                <option key={t} value={t}>{ETIQUETA_TRIMESTRE[t]} trimestre{periodo?.trimestre === t ? ' (activo)' : ''}</option>
+              ))}
             </select>
           </div>
-          <button 
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="bg-[#4a90e2] text-white text-[11px] font-bold px-6 py-2.5 rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            <Save size={16} /> {saving ? 'Guardando...' : 'Guardar todo'}
-          </button>
+          {planilla?.editable && (
+            <button
+              type="button"
+              onClick={guardar}
+              disabled={guardando || cargando || cantidadCambios === 0}
+              className="ios-btn-primary flex items-center gap-2 text-[12px]"
+            >
+              <Save size={15} /> {guardando ? 'Guardando…' : `Guardar notas${cantidadCambios ? ` (${cantidadCambios})` : ''}`}
+            </button>
+          )}
         </div>
 
-        {/* Message Alert */}
-        {message && (
-          <div className={`p-3 rounded-md flex items-center gap-3 text-[12px] font-medium ${
-            message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 
-            message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 
-            'bg-blue-50 text-blue-700 border border-blue-100'
-          }`}>
-            {message.type === 'success' ? <CheckCircle size={16} /> : 
-             message.type === 'error' ? <AlertCircle size={16} /> : 
-             <Info size={16} />}
-            {message.text}
+        {/* Periodo y estado */}
+        {planilla && !cargando && (
+          <div className="flex flex-wrap items-center gap-3 text-[12px]" style={{ color: 'var(--ios-secondary)' }}>
+            <span>
+              {materiaActual ? `${materiaActual.materia.nombre} · ` : ''}Trimestre {planilla.trimestre}
+              {planilla.periodo ? ` · ${fechaCorta(planilla.periodo.fechaInicio)} al ${fechaCorta(planilla.periodo.fechaFin)}` : ' · sin fechas configuradas'}
+            </span>
+            {!planilla.editable && (
+              <span className="flex items-center gap-1 font-medium" style={{ color: 'var(--ios-orange)' }}>
+                <Lock size={13} /> {planilla.motivoNoEditable}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Grades Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-1/3">Estudiante</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Ser (15)</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Saber (35)</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Hacer (50)</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Total (100)</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-slate-400 text-[12px]">
-                    Cargando estudiantes...
-                  </td>
-                </tr>
-              ) : estudiantes.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-slate-400 text-[12px]">
-                    No se encontraron estudiantes para este curso.
-                  </td>
-                </tr>
-              ) : (
-                estudiantes.map((est, idx) => {
-                  const estado = getEstado(est.total);
-                  return (
-                    <tr key={est.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 text-[12px] font-medium text-slate-700">{est.nombre}</td>
-                      <td className="px-4 py-4 text-center">
-                        <input 
-                          type="number" 
-                          min="0" max="15"
-                          value={est.ser}
-                          onChange={(e) => handleNotaChange(idx, 'ser', e.target.value)}
-                          className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <input 
-                          type="number" 
-                          min="0" max="35"
-                          value={est.saber}
-                          onChange={(e) => handleNotaChange(idx, 'saber', e.target.value)}
-                          className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <input 
-                          type="number" 
-                          min="0" max="50"
-                          value={est.hacer}
-                          onChange={(e) => handleNotaChange(idx, 'hacer', e.target.value)}
-                          className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`text-[14px] font-bold ${est.total >= 51 ? 'text-green-600' : 'text-red-600'}`}>
-                          {est.total}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${estado.class}`}>
-                          {estado.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        {hayBorrador && (
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl text-[12px]" style={{ backgroundColor: 'var(--ios-orange-light)', color: 'var(--ios-label)' }}>
+            <Info size={15} style={{ color: 'var(--ios-orange)' }} />
+            Tienes cambios sin guardar. Guarda o descarta antes de cambiar de materia, trimestre o casillas.
+            <button type="button" className="ios-btn-ghost text-[12px] ml-auto" onClick={() => setCambios({})} disabled={guardando}>
+              Descartar cambios
+            </button>
+          </div>
+        )}
 
+        {mensaje && (
+          <div
+            className="p-3 rounded-xl flex items-center gap-2 text-[12px] font-medium"
+            style={{
+              backgroundColor: mensaje.tipo === 'exito' ? 'var(--ios-green-light)' : mensaje.tipo === 'error' ? 'var(--ios-red-light)' : 'var(--ios-blue-light)',
+              color: mensaje.tipo === 'exito' ? 'var(--ios-green)' : mensaje.tipo === 'error' ? 'var(--ios-red)' : 'var(--ios-blue)',
+            }}
+          >
+            {mensaje.tipo === 'exito' ? <CheckCircle size={15} /> : mensaje.tipo === 'error' ? <AlertCircle size={15} /> : <Info size={15} />}
+            {mensaje.texto}
+          </div>
+        )}
+
+        {materias.length === 0 && !mensaje && (
+          <div className="ios-card p-8 text-center text-[13px]" style={{ color: 'var(--ios-secondary)' }}>
+            No tienes materias asignadas.
+          </div>
+        )}
+
+        {cargando && materiaId && (
+          <div className="ios-card p-8 text-center text-[13px]" style={{ color: 'var(--ios-secondary)' }}>Cargando planilla…</div>
+        )}
+
+        {!cargando && planilla.editable && (
+          <ConfiguradorCasillas
+            key={planilla.casillas.map((c) => `${c.id}:${c.nombre}`).join('|')}
+            planilla={planilla}
+            bloqueado={hayBorrador}
+            motivoBloqueo="Guarda o descarta las notas antes de cambiar las casillas"
+            onGuardado={(nueva, texto) => { setPlanilla(nueva); setMensaje({ tipo: 'exito', texto }); }}
+          />
+        )}
+
+        {!cargando && (
+          <PlanillaNotas planilla={planilla} editable={planilla.editable} cambios={cambios} onCambio={alCambiar} />
+        )}
+
+        {!cargando && (
+          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ios-tertiary)' }}>
+            Cada dimensión es el promedio de sus casillas, redondeado (0,5 sube). Una casilla que nadie tiene calificada no cuenta;
+            si otros estudiantes ya tienen nota en ella, quien no la tiene recibe 0. La columna «Asist.» se calcula sola con las
+            listas de asistencia (presente y justificado cuentan).
+          </p>
+        )}
       </div>
     </SidebarLayout>
   );
-};
-
-export default RegistroNotas;
+}

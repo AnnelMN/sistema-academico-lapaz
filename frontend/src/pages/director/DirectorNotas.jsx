@@ -1,244 +1,107 @@
 import { useEffect, useState } from 'react';
-import { Save, AlertCircle, CheckCircle, Info } from 'lucide-react';
-import { getMisMaterias, getNotasEstudiantes, upsertNota } from '../../services/notas.service';
+import { AlertCircle, Eye } from 'lucide-react';
+import PlanillaNotas from '../../components/notas/PlanillaNotas';
+import { getMisMaterias, getPeriodoActual, getPlanilla } from '../../services/notas.service';
+
+// Notas para el Director: SOLO LECTURA (las registra el profesor de cada materia).
+
+const ETIQUETA_TRIMESTRE = { 1: '1.er', 2: '2.º', 3: '3.er' };
+const fechaCorta = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 
 const DirectorNotas = () => {
   const [materias, setMaterias] = useState([]);
-  const [trimestre, setTrimestre] = useState('1');
+  const [periodo, setPeriodo] = useState(null);
   const [materiaId, setMateriaId] = useState('');
-  const [estudiantes, setEstudiantes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [trimestre, setTrimestre] = useState(null); // null = trimestre activo
+  const [planilla, setPlanilla] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchMaterias();
+    let vigente = true;
+    Promise.all([getMisMaterias(), getPeriodoActual()])
+      .then(([lista, actual]) => {
+        if (!vigente) return;
+        setMaterias(lista || []);
+        setPeriodo(actual);
+        if (lista?.length) setMateriaId(lista[0].id);
+      })
+      .catch(() => vigente && setError('No se pudieron cargar las materias'));
+    return () => { vigente = false; };
   }, []);
 
-  const fetchMaterias = async () => {
-    try {
-      const data = await getMisMaterias();
-      setMaterias(data || []);
-      if (data.length > 0) setMateriaId(data[0].id);
-    } catch (error) {
-      console.error('Error fetching materias:', error);
-    }
-  };
-
   useEffect(() => {
-    if (materiaId && trimestre) {
-      fetchNotas();
-    }
+    if (!materiaId) return undefined;
+    let vigente = true;
+    getPlanilla(materiaId, trimestre)
+      .then((datos) => { if (vigente) { setPlanilla(datos); setError(''); } })
+      .catch((err) => vigente && setError(err.response?.data?.error || 'No se pudo cargar la planilla'));
+    return () => { vigente = false; };
   }, [materiaId, trimestre]);
 
-  const fetchNotas = async () => {
-    try {
-      setLoading(true);
-      const data = await getNotasEstudiantes(materiaId, trimestre);
-      setEstudiantes(data || []);
-    } catch (error) {
-      console.error('Error fetching notas:', error);
-      setEstudiantes([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNotaChange = (index, field, value) => {
-    const updated = [...estudiantes];
-    const numValue = value === '' ? 0 : parseFloat(value);
-
-    if (field === 'ser' && (numValue < 0 || numValue > 15)) return;
-    if (field === 'saber' && (numValue < 0 || numValue > 35)) return;
-    if (field === 'hacer' && (numValue < 0)) return;
-
-    updated[index][field] = value === '' ? '' : numValue;
-
-    const ser = updated[index].ser || 0;
-    const saber = updated[index].saber || 0;
-    const hacer = updated[index].hacer || 0;
-    updated[index].total = ser + saber + hacer;
-
-    setEstudiantes(updated);
-  };
-
-  const getEstado = (total) => {
-    if (total >= 51) return { label: 'Aprobado', class: 'bg-green-100 text-green-700' };
-    if (total >= 40) return { label: 'Atención', class: 'bg-amber-100 text-amber-700' };
-    return { label: 'Riesgo', class: 'bg-red-100 text-red-700' };
-  };
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setMessage({ type: 'info', text: 'Guardando cambios...' });
-
-      const promises = estudiantes.map((est) =>
-        upsertNota({
-          estudianteId: est.id,
-          materiaProgramadaId: materiaId,
-          trimestre: parseInt(trimestre),
-          ser: est.ser || 0,
-          saber: est.saber || 0,
-          hacer: est.hacer || 0,
-        })
-      );
-
-      await Promise.all(promises);
-
-      setMessage({ type: 'success', text: 'Notas guardadas correctamente' });
-      setSaving(false);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Error saving notas:', error);
-      setMessage({ type: 'error', text: 'Error al guardar las notas' });
-      setSaving(false);
-    }
-  };
+  const cargando = !planilla || planilla.materiaProgramadaId !== materiaId || (trimestre !== null && planilla.trimestre !== trimestre);
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-[20px] font-bold" style={{ color: 'var(--ios-label)' }}>
-          Registro de notas — Director
+          Notas por materia
         </h2>
         <p className="text-[13px] mt-0.5" style={{ color: 'var(--ios-secondary)' }}>
-          Escala boliviana: Ser (0–15) + Saber (0–35) + Hacer (variable) = Total (0–100)
+          SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5 = 100 · aprueba con 51
         </p>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
+      <div className="ios-card p-4 flex flex-wrap gap-4 items-end">
         <div className="flex-1 min-w-[240px]">
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--ios-secondary)' }}>
             Materia y curso
           </label>
-          <select
-            value={materiaId}
-            onChange={(e) => setMateriaId(e.target.value)}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-          >
+          <select value={materiaId} onChange={(e) => setMateriaId(e.target.value)} className="ios-input w-full text-[12px]">
             {materias.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.curso?.nivel}° {m.curso?.paralelo} — {m.materia?.nombre}
+                {m.docente?.usuario?.nombre ? ` (${m.docente.usuario.nombre})` : ''}
               </option>
             ))}
           </select>
         </div>
         <div className="w-48">
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--ios-secondary)' }}>
             Trimestre
           </label>
           <select
-            value={trimestre}
-            onChange={(e) => setTrimestre(e.target.value)}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-[12px] text-slate-600 outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            value={trimestre ?? planilla?.trimestre ?? ''}
+            disabled={!planilla}
+            onChange={(e) => setTrimestre(Number(e.target.value))}
+            className="ios-input w-full text-[12px]"
           >
-            <option value="1">1er Trimestre</option>
-            <option value="2">2do Trimestre</option>
-            <option value="3">3er Trimestre</option>
+            {[1, 2, 3].map((t) => (
+              <option key={t} value={t}>{ETIQUETA_TRIMESTRE[t]} trimestre{periodo?.trimestre === t ? ' (activo)' : ''}</option>
+            ))}
           </select>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || loading}
-          className="ios-btn-primary w-full"
-        >
-          {saving ? 'Guardando...' : 'Guardar todo'}
-        </button>
       </div>
 
-      {message && (
-        <div
-          className={`p-3 rounded-xl flex items-center gap-2 text-[12px] font-medium ${
-            message.type === 'success'
-              ? 'bg-green-50 text-green-700 border border-green-100'
-              : message.type === 'error'
-                ? 'bg-red-50 text-red-700 border border-red-100'
-                : 'bg-blue-50 text-blue-700 border border-blue-100'
-          }`}
-        >
-          {message.type === 'success' ? <CheckCircle size={16} /> : message.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}
-          {message.text}
+      <div className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--ios-secondary)' }}>
+        <Eye size={14} /> Vista de solo lectura: las notas las registra el profesor de cada materia.
+        {planilla?.periodo && !cargando && (
+          <span>· Trimestre {planilla.trimestre}: {fechaCorta(planilla.periodo.fechaInicio)} al {fechaCorta(planilla.periodo.fechaFin)}</span>
+        )}
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-xl flex items-center gap-2 text-[12px] font-medium" style={{ backgroundColor: 'var(--ios-red-light)', color: 'var(--ios-red)' }}>
+          <AlertCircle size={15} /> {error}
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-1/3">Estudiante</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Ser (15)</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Saber (35)</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Hacer</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Total (100)</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Estado</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {loading ? (
-              <tr>
-                <td colSpan="6" className="px-4 py-10 text-center text-slate-400 text-[12px]">
-                  Cargando estudiantes...
-                </td>
-              </tr>
-            ) : estudiantes.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="px-4 py-10 text-center text-slate-400 text-[12px]">
-                  No se encontraron estudiantes para este curso y trimestre.
-                </td>
-              </tr>
-            ) : (
-              estudiantes.map((est, idx) => {
-                const estado = getEstado(est.total);
-                return (
-                  <tr key={est.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-4 text-[12px] font-medium text-slate-700">{est.nombre}</td>
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        max="15"
-                        value={est.ser}
-                        onChange={(e) => handleNotaChange(idx, 'ser', e.target.value)}
-                        className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                      />
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        max="35"
-                        value={est.saber}
-                        onChange={(e) => handleNotaChange(idx, 'saber', e.target.value)}
-                        className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                      />
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        value={est.hacer}
-                        onChange={(e) => handleNotaChange(idx, 'hacer', e.target.value)}
-                        className="w-16 border border-slate-200 rounded px-2 py-1 text-center text-[12px] focus:ring-1 focus:ring-red-500 outline-none"
-                      />
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`text-[14px] font-bold ${est.total >= 51 ? 'text-green-600' : 'text-red-600'}`}>
-                        {est.total}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${estado.class}`}>
-                        {estado.label}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {!error && materias.length === 0 && (
+        <div className="ios-card p-8 text-center text-[13px]" style={{ color: 'var(--ios-secondary)' }}>No hay materias programadas.</div>
+      )}
+
+      {!error && materiaId && (cargando
+        ? <div className="ios-card p-8 text-center text-[13px]" style={{ color: 'var(--ios-secondary)' }}>Cargando planilla…</div>
+        : <PlanillaNotas planilla={planilla} editable={false} />)}
     </div>
   );
 };
