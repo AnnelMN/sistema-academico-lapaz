@@ -6,6 +6,28 @@ const {
   verificarAccesoProgramacion,
   verificarEstudiantesEnCurso,
 } = require('../lib/acceso');
+const {
+  hoyLaPaz, esFechaISOValida, esDiaHabil, periodoDeFecha, periodoActivo, rangoDeTrimestre,
+} = require('../services/periodoService');
+const { recalcularNotas } = require('../services/calificacionService');
+
+const ESTADOS_VALIDOS = new Set(['PRESENTE', 'AUSENTE', 'JUSTIFICADO']);
+const MAX_REGISTROS_POR_LISTA = 200;
+
+// Asistencia = (PRESENTE + JUSTIFICADO) / registros × 100 (el justificado cuenta como asistencia)
+const contarAsistencia = (registros) => {
+  const presentes = registros.filter(a => a.estado === 'PRESENTE').length;
+  const justificados = registros.filter(a => a.estado === 'JUSTIFICADO').length;
+  const faltas = registros.filter(a => a.estado === 'AUSENTE').length;
+  const total = registros.length;
+  return {
+    presentes,
+    justificados,
+    faltas,
+    total,
+    porcentaje: total > 0 ? ((presentes + justificados) / total) * 100 : null,
+  };
+};
 
 // ─────────────────────────────────────────────
 // GET /api/asistencia/estudiantes
@@ -26,11 +48,19 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
     }
     const { programacion } = acceso;
 
+    if (!esFechaISOValida(fecha)) {
+      return res.status(400).json({ error: 'Fecha inválida (formato AAAA-MM-DD)' });
+    }
+
     // Fecha normalizada al inicio del día UTC
-    const fechaInicio = new Date(fecha);
-    fechaInicio.setUTCHours(0, 0, 0, 0);
-    const fechaFin = new Date(fecha);
-    fechaFin.setUTCHours(23, 59, 59, 999);
+    const fechaInicio = new Date(`${fecha}T00:00:00.000Z`);
+    const fechaFin = new Date(`${fecha}T23:59:59.999Z`);
+
+    // Las estadísticas se calculan sobre el trimestre de la fecha consultada
+    // (igual que la casilla de asistencia de SER); si la fecha no cae en ningún
+    // trimestre, se usan todos los registros.
+    const periodo = await periodoDeFecha(fecha);
+    const rango = periodo ? await rangoDeTrimestre(periodo.gestion, periodo.trimestre) : null;
 
     // Obtener todos los estudiantes del curso con sus asistencias
     const estudiantes = await prisma.estudiante.findMany({
@@ -38,7 +68,10 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
       include: {
         usuario: { select: { nombre: true } },
         asistencias: {
-          where: { materiaProgramadaId }
+          where: {
+            materiaProgramadaId,
+            ...(rango ? { fecha: { gte: rango.inicio, lte: rango.fin } } : {}),
+          }
         }
       },
       orderBy: { usuario: { nombre: 'asc' } }
@@ -54,22 +87,19 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
         return d >= fechaInicio && d <= fechaFin;
       });
 
-      // Estadísticas acumuladas
-      const totalRegistros = todasLasAsistencias.length;
-      const presentes = todasLasAsistencias.filter(a => a.estado === 'PRESENTE').length;
-      const faltas = todasLasAsistencias.filter(a => a.estado === 'AUSENTE').length;
-      const porcentajeAsistencia = totalRegistros > 0
-        ? Math.round((presentes / totalRegistros) * 100 * 10) / 10
-        : null; // null = sin registros aún
+      // Estadísticas del trimestre (el justificado cuenta como asistencia)
+      const stats = contarAsistencia(todasLasAsistencias);
 
       return {
         id: est.id,
         nombre: est.usuario.nombre,
         estadoHoy: asistenciaHoy ? asistenciaHoy.estado : null,
-        totalRegistros,
-        presentes,
-        faltas,
-        porcentajeAsistencia
+        totalRegistros: stats.total,
+        presentes: stats.presentes,
+        justificados: stats.justificados,
+        faltas: stats.faltas,
+        porcentajeAsistencia: stats.porcentaje === null ? null : Math.round(stats.porcentaje), // null = sin registros aún
+        trimestre: periodo?.trimestre ?? null,
       };
     });
 
@@ -112,8 +142,38 @@ exports.registrarAsistencia = async (req, res) => {
       return res.status(pertenencia.status).json({ error: pertenencia.error });
     }
 
-    const fechaDate = new Date(fecha);
-    fechaDate.setUTCHours(12, 0, 0, 0); // Mediodía UTC para evitar problemas de zona horaria
+    if (registros.length > MAX_REGISTROS_POR_LISTA) {
+      return res.status(400).json({ error: `Máximo ${MAX_REGISTROS_POR_LISTA} estudiantes por lista` });
+    }
+    if (!registros.every(r => ESTADOS_VALIDOS.has(r.estado))) {
+      return res.status(400).json({ error: 'Estado inválido: use PRESENTE, AUSENTE o JUSTIFICADO' });
+    }
+
+    // Reglas de fecha: válida, de lunes a viernes, no futura y dentro del trimestre activo
+    if (!esFechaISOValida(fecha)) {
+      return res.status(400).json({ error: 'Fecha inválida (formato AAAA-MM-DD)' });
+    }
+    if (!esDiaHabil(fecha)) {
+      return res.status(400).json({ error: 'Solo se registra asistencia de lunes a viernes' });
+    }
+    if (fecha > hoyLaPaz()) {
+      return res.status(400).json({ error: 'No se puede registrar asistencia de una fecha futura' });
+    }
+    const [periodo, activo] = await Promise.all([periodoDeFecha(fecha), periodoActivo()]);
+    if (!periodo) {
+      return res.status(400).json({ error: 'La fecha no pertenece a ningún trimestre (vacaciones o día de descanso)' });
+    }
+    if (!activo || periodo.gestion !== activo.gestion || periodo.trimestre !== activo.trimestre) {
+      return res.status(403).json({ error: 'Solo se registra asistencia del trimestre activo' });
+    }
+    const programacionGestion = await prisma.materiaProgramada.findUnique({
+      where: { id: materiaProgramadaId }, select: { gestion: true },
+    });
+    if (programacionGestion.gestion !== periodo.gestion) {
+      return res.status(400).json({ error: 'La fecha no corresponde a la gestión de esta materia' });
+    }
+
+    const fechaDate = new Date(`${fecha}T12:00:00.000Z`); // Mediodía UTC para evitar problemas de zona horaria
 
     const resultados = await Promise.all(
       registros.map(({ estudianteId, estado }) =>
@@ -136,12 +196,19 @@ exports.registrarAsistencia = async (req, res) => {
       )
     );
 
+    // Obtener todos los estudiantes unicos afectados
+    const estudianteIds = [...new Set(registros.map(r => r.estudianteId))];
+
+    // Actualizar la casilla de asistencia de SER en las notas del trimestre
+    try {
+      await recalcularNotas(materiaProgramadaId, periodo.trimestre, { estudianteIds });
+    } catch (calcError) {
+      console.error('Error recalculando notas tras la asistencia:', calcError.message);
+    }
+
     // --- INTEGRACION CON IA Y NOTIFICACIONES ---
     const config = await prisma.configuracion.findFirst();
     const limiteFaltas = config?.limiteFaltas || 25;
-
-    // Obtener todos los estudiantes unicos afectados
-    const estudianteIds = [...new Set(registros.map(r => r.estudianteId))];
 
     for (const estudianteId of estudianteIds) {
       try {
@@ -156,14 +223,12 @@ exports.registrarAsistencia = async (req, res) => {
         const asistencias = await prisma.asistencia.findMany({
           where: { estudianteId, materiaProgramadaId }
         });
-        const presentes = asistencias.filter(a => a.estado === 'PRESENTE').length;
-        const faltas = asistencias.filter(a => a.estado === 'AUSENTE').length;
-        const porcentajeAsistencia = asistencias.length > 0
-          ? (presentes / asistencias.length) * 100
-          : 100;
+        const statsAsistencia = contarAsistencia(asistencias);
+        const faltas = statsAsistencia.faltas;
+        const porcentajeAsistencia = statsAsistencia.porcentaje ?? 100;
 
-        // 3. Obtener promedio de notas del trimestre activo
-        const trimestreActivo = config?.trimestreActivo || 1;
+        // 3. Obtener promedio de notas del trimestre (según la fecha registrada)
+        const trimestreActivo = periodo.trimestre;
         const notas = await prisma.nota.findMany({
           where: { estudianteId, trimestre: trimestreActivo }
         });

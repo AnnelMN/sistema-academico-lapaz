@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { periodoActivo } = require('../services/periodoService');
 
 // MATERIAS
 const getMaterias = async (req, res) => {
@@ -114,7 +115,9 @@ const getDirectorDashboard = async (req, res) => {
   try {
     const config = await prisma.configuracion.findFirst();
     const gestion = config?.gestionActual || new Date().getFullYear();
-    const trimestre = config?.trimestreActivo || 1;
+    // Trimestre activo según las fechas configuradas (null si hoy no hay trimestre)
+    const activo = await periodoActivo();
+    const trimestre = activo?.trimestre ?? null;
     const umbral = config?.umbralAprobacion || 51;
     const prediccionesDisponibles = iaHabilitada();
 

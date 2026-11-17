@@ -97,7 +97,8 @@ exports.getMiAsistencia = async (req, res) => {
     const data = Object.keys(resumen).map(materia => {
       const stats = resumen[materia];
       // Según reglas, J no cuenta como falta. El % es sobre el total.
-      const porcentaje = stats.total > 0 ? Math.round((stats.presentes / stats.total) * 100) : 0;
+      // El justificado cuenta como asistencia
+      const porcentaje = stats.total > 0 ? Math.round(((stats.presentes + stats.justificados) / stats.total) * 100) : 0;
       return {
         materia,
         faltas: stats.ausentes,
