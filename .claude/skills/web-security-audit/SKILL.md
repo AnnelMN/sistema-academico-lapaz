@@ -225,7 +225,7 @@ Formato de cada control: **Objetivo · Qué verificar · Criterio de aprobación
 ### 7. Acceso a registros según permisos (autorización por objeto / IDOR)
 - **Reglas del negocio a comprobar:**
   - **PROFESOR:** solo `MateriaProgramada` con `docenteId` = su docente, **y** solo estudiantes cuyo `cursoId` = `cursoId` de esa programación (lectura y escritura).
-  - **ESTUDIANTE:** solo sus propios datos; el `estudianteId` se obtiene **del token**, nunca de `req.query`/`req.body`. No ve predicciones de riesgo ni datos de otros (según `AGENTS.md`).
+  - **ESTUDIANTE:** solo sus propios datos — notas, asistencia, horario y **su propio nivel de riesgo** (permitido por decisión de la usuaria, 2026-11-17) —; el `estudianteId` se obtiene **del token**, nunca de `req.query`/`req.body`. Nunca ve datos ni predicciones de otros estudiantes. **No puede registrar ni modificar ninguna nota** (ni siquiera la autoevaluación, que registra el docente).
   - **ADMINISTRATIVO:** materias, cursos, horarios, asignaciones; **no** notas individuales ni predicciones.
   - **DIRECTOR:** acceso global.
 - **Verificar:** cada endpoint que recibe un identificador (búsqueda en §4.3) y la comprobación de propiedad correspondiente; consistencia rol-ruta con `AGENTS.md`.
@@ -234,7 +234,12 @@ Formato de cada control: **Objetivo · Qué verificar · Criterio de aprobación
 - **Verificar corrección:** razonamiento con casos: "profesor A pide/escribe estudiante del curso de B" → 403; "estudiante X pide historial de Y" → 403.
 
 ### 8. Manipulación de campos, roles y permisos (mass assignment)
-- **Verificar:** que nunca se pase `req.body` completo a Prisma (`data: req.body`, `...req.body`); que `rol`, `activo`, `twoFactorEnabled`, `twoFactorSecret`, `total`, `aprobado` no puedan venir del cliente salvo donde corresponda; que el Director no pueda cambiar su propio rol ni desactivarse; rangos: `ser` 0–15, `saber` 0–35, `hacer` 0–50 (total ≤ 100), `trimestre` 1–3, `nivel` 1–6; tamaño máximo de arrays (`registros` de asistencia).
+- **Verificar:** que nunca se pase `req.body` completo a Prisma (`data: req.body`, `...req.body`); que `rol`, `activo`, `twoFactorEnabled`, `twoFactorSecret`, `total`, `aprobado` no puedan venir del cliente salvo donde corresponda; que el Director no pueda cambiar su propio rol ni desactivarse; `trimestre` 1–3, `nivel` 1–6; tamaño máximo de arrays (`registros` de asistencia, lista de casillas).
+- **Escala de notas del colegio (ver `AGENTS.md`, Módulo 4):** SER 10 + SABER 45 + HACER 40 + AUTOEVALUACIÓN 5 = 100.
+  - Cada casilla, **entero entre 0 y 100**; la cantidad de casillas por dimensión la define el docente (validar mínimo 1 y un máximo razonable); el puntaje de cada dimensión, el total y la nota anual se **calculan en el servidor** (promedio de casillas × peso / 100, **cada dimensión redondeada a entero desde 0,5 antes de sumar**), nunca se aceptan del cliente; total ≤ 100.
+  - En SER, **una de las casillas que define el docente es siempre la de asistencia**: se calcula en el servidor a partir de los registros de asistencia **de esa materia** ((PRESENTE + JUSTIFICADO) / clases del trimestre × 100) y el docente no puede escribirla a mano.
+  - La **AUTOEVALUACIÓN** es un **entero de 0 a 5** (sin casillas); la registra **solo el docente** de esa materia, en el trimestre activo; ninguna ruta del rol ESTUDIANTE puede escribir notas.
+  - Mientras el código siga con la escala antigua (Ser 0–15, Saber 0–35, Hacer libre), reportarlo como pendiente de rediseño, no como vulnerabilidad.
 - **Aprobado si:** lista blanca explícita de campos en cada escritura y campos derivados calculados en servidor.
 - **Remediación:** esquemas de validación (control 14) con listas blancas; reglas de negocio en servidor.
 
@@ -263,7 +268,7 @@ Formato de cada control: **Objetivo · Qué verificar · Criterio de aprobación
 - **Aprobado si:** todo acceso a datos es por API de Prisma o `$queryRaw` etiquetado.
 
 ### 14. Validación de todas las entradas
-- **Verificar:** validación en el servidor (la del frontend es solo UX) de tipos, formatos y rangos: UUID en IDs, email con formato y normalizado a minúsculas al crear/editar (el login normaliza), fechas válidas, enums (`rol`, `estado`, `tipo`), `trimestre`, `nivel`, `paralelo`, notas (control 8), longitud de textos (`mensaje`, `nombre`, `horario`); en FastAPI, `pydantic.Field(ge=…, le=…)` para cada variable del modelo.
+- **Verificar:** validación en el servidor (la del frontend es solo UX) de tipos, formatos y rangos: UUID en IDs, email con formato y normalizado a minúsculas al crear/editar (el login normaliza), fechas válidas, enums (`rol`, `estado`, `tipo`), `trimestre`, `nivel`, `paralelo`, notas por casilla 0–100 y autoevaluación (control 8), longitud de textos (`mensaje`, `nombre`, `horario`); en FastAPI, `pydantic.Field(ge=…, le=…)` para cada variable del modelo.
 - **Remediación recomendada:** esquemas con `zod` en la frontera de cada ruta (requiere autorización para instalar) o validadores propios centralizados.
 - **Aprobado si:** cada endpoint rechaza con 400 entradas fuera de esquema antes de tocar la BD.
 
@@ -444,6 +449,16 @@ Usar como referencia para detectar avances y regresiones. **Re-verificar siempre
 | LB-19 | Info | — | `otp.controller.js` no está montado en ninguna ruta (código muerto). |
 | LB-20 | Info | 16 | No existe subida de archivos (control 16 = N/A). |
 | LB-21 | Info | B, C, D, H | Sin auditoría de cambios, sin `tokenVersion`, sin Gitleaks, respaldos sin verificar. |
+
+---
+
+### Decisiones de la usuaria que modifican la línea base
+
+| Fecha | Decisión | Efecto en la auditoría |
+|---|---|---|
+| 2026-11-17 | El estudiante **sí** puede ver **su propio** nivel de riesgo | No reportar `/api/estudiante/prediccion` como hallazgo, siempre que el id venga del token y solo devuelva su predicción |
+| 2026-11-17 | Escala real: SER 10, SABER 45, HACER 40, AUTOEVALUACIÓN 5; casillas enteras 0–100 promediadas (cantidad elegida por el docente); una casilla de SER es la asistencia automática por materia; autoevaluación 0–5 registrada por el docente; JUSTIFICADO cuenta como asistencia; cada dimensión se redondea a entero desde 0,5 antes de sumar; nota anual = promedio de 3 trimestres | Controles 7, 8 y 14 actualizados |
+| 2026-11-17 | El dataset del modelo IA no es válido; **no entrenar** hasta nueva indicación | Reportar como riesgo que las predicciones automáticas y los correos de Riesgo Alto sigan activos con un modelo no válido |
 
 ---
 
