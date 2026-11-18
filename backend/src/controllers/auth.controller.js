@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const prisma = require('../lib/prisma');
+const { cifrar, descifrar } = require('../lib/cifrado');
 const { esContrasenaRobusta, MENSAJE_CONTRASENA } = require('../lib/validaciones');
 
 // Huella del hash de la contraseña para el token de recuperación: un HMAC que
@@ -113,7 +114,7 @@ const login = async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: user.id },
-      data: { twoFactorSecret: secret.base32, twoFactorEnabled: false },
+      data: { twoFactorSecret: cifrar(secret.base32), twoFactorEnabled: false },
     });
 
     const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url);
@@ -134,6 +135,7 @@ const login = async (req, res) => {
       id: user.id,
       rol: user.rol,
       email: user.email,
+      tv: user.tokenVersion,
     };
 
     const token = jwt.sign(
@@ -194,7 +196,7 @@ const authenticate = async (req, res) => {
     }
 
     const valido = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: descifrar(user.twoFactorSecret),
       encoding: 'base32',
       token: String(code).trim(),
       window: 1,
@@ -208,7 +210,7 @@ const authenticate = async (req, res) => {
     clearFailures(twoFactorAttempts, attemptKey);
 
     const token = jwt.sign(
-      { id: user.id, rol: user.rol, email: user.email },
+      { id: user.id, rol: user.rol, email: user.email, tv: user.tokenVersion },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -263,7 +265,7 @@ const setupAuthenticate = async (req, res) => {
     }
 
     const valido = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: descifrar(user.twoFactorSecret),
       encoding: 'base32',
       token: String(code).trim(),
       window: 1,
@@ -281,7 +283,7 @@ const setupAuthenticate = async (req, res) => {
     clearFailures(twoFactorAttempts, attemptKey);
 
     const token = jwt.sign(
-      { id: user.id, rol: user.rol, email: user.email },
+      { id: user.id, rol: user.rol, email: user.email, tv: user.tokenVersion },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -370,7 +372,7 @@ const resetPassword = async (req, res) => {
     }
 
     const valido = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: descifrar(user.twoFactorSecret),
       encoding: 'base32',
       token: String(code).trim(),
       window: 1,
@@ -383,7 +385,8 @@ const resetPassword = async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: user.id },
-      data: { password: await bcrypt.hash(newPassword, 12) },
+      // Nueva contraseña → se cierran todas las sesiones abiertas
+      data: { password: await bcrypt.hash(newPassword, 12), tokenVersion: { increment: 1 } },
     });
 
     clearFailures(passwordResetAttempts, resetKey);
@@ -419,7 +422,23 @@ const getMe = async (req, res) => {
   }
 };
 
+// POST /api/auth/cerrar-sesiones — cierra TODAS las sesiones del usuario
+// (en cualquier dispositivo), incluida la actual.
+const cerrarSesiones = async (req, res) => {
+  try {
+    await prisma.usuario.update({
+      where: { id: req.user.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    res.json({ ok: true, message: 'Se cerraron todas tus sesiones' });
+  } catch (error) {
+    console.error('Cerrar sesiones error:', error.message);
+    res.status(500).json({ error: 'No se pudieron cerrar las sesiones' });
+  }
+};
+
 module.exports = {
+  cerrarSesiones,
   login,
   authenticate,
   setupAuthenticate,

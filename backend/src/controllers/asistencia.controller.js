@@ -10,6 +10,7 @@ const {
   hoyLaPaz, esFechaISOValida, esDiaHabil, periodoDeFecha, periodoActivo, rangoDeTrimestre,
 } = require('../services/periodoService');
 const { recalcularNotas } = require('../services/calificacionService');
+const { accionDe, registrarCambios } = require('../services/auditoriaService');
 
 const ESTADOS_VALIDOS = new Set(['PRESENTE', 'AUSENTE', 'JUSTIFICADO']);
 const MAX_REGISTROS_POR_LISTA = 200;
@@ -175,9 +176,16 @@ exports.registrarAsistencia = async (req, res) => {
 
     const fechaDate = new Date(`${fecha}T12:00:00.000Z`); // Mediodía UTC para evitar problemas de zona horaria
 
-    const resultados = await Promise.all(
-      registros.map(({ estudianteId, estado }) =>
-        prisma.asistencia.upsert({
+    // Guardado + auditoría en la misma transacción (quién cambió qué asistencia)
+    const resultados = await prisma.$transaction(async (tx) => {
+      const previas = new Map((await tx.asistencia.findMany({
+        where: { materiaProgramadaId, fecha: fechaDate, estudianteId: { in: registros.map(r => r.estudianteId) } },
+        select: { estudianteId: true, estado: true },
+      })).map(a => [a.estudianteId, a.estado]));
+
+      const guardados = [];
+      for (const { estudianteId, estado } of registros) {
+        guardados.push(await tx.asistencia.upsert({
           where: {
             estudianteId_materiaProgramadaId_fecha: {
               estudianteId,
@@ -192,9 +200,22 @@ exports.registrarAsistencia = async (req, res) => {
             fecha: fechaDate,
             estado
           }
-        })
-      )
-    );
+        }));
+      }
+
+      await registrarCambios(tx, registros
+        .filter(({ estudianteId, estado }) => previas.get(estudianteId) !== estado)
+        .map(({ estudianteId, estado }) => {
+          const anterior = previas.get(estudianteId) ?? null;
+          return {
+            entidad: 'ASISTENCIA', accion: accionDe(anterior, estado), materiaProgramadaId, estudianteId,
+            usuarioId: req.user.id,
+            valorAnterior: anterior === null ? null : { fecha, estado: anterior },
+            valorNuevo: { fecha, estado },
+          };
+        }));
+      return guardados;
+    }, { maxWait: 10000, timeout: 30000 });
 
     // Obtener todos los estudiantes unicos afectados
     const estudianteIds = [...new Set(registros.map(r => r.estudianteId))];

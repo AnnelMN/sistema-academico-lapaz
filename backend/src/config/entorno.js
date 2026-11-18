@@ -21,6 +21,22 @@ function validarEntorno() {
     (esProduccion() ? errores : avisos).push('JWT_SECRET debería tener 64 caracteres o más');
   }
 
+  // Clave de cifrado de los secretos 2FA (LB-08): 64 caracteres hexadecimales
+  const claveTotp = process.env.TOTP_ENC_KEY || '';
+  if (!/^[0-9a-fA-F]{64}$/.test(claveTotp)) {
+    (esProduccion() ? errores : avisos).push(
+      'TOTP_ENC_KEY debe tener 64 caracteres hexadecimales (sin ella no se pueden activar ni leer secretos 2FA cifrados)'
+    );
+  }
+
+  // Conexión cifrada con la base de datos (LB-08)
+  for (const nombre of ['DATABASE_URL', 'DIRECT_URL']) {
+    const url = process.env[nombre];
+    if (url && !/[?&]sslmode=(require|verify-ca|verify-full)\b/.test(url)) {
+      (esProduccion() ? errores : avisos).push(`${nombre} debería incluir sslmode=require (conexión cifrada)`);
+    }
+  }
+
   if (esProduccion()) {
     ['FRONTEND_URL', 'EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS'].forEach(requerida);
     for (const origen of origenesPermitidos()) {

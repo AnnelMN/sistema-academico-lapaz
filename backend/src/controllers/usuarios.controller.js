@@ -136,6 +136,11 @@ const updateUsuario = async (req, res) => {
       updateData.password = await bcrypt.hash(password, COSTO_BCRYPT);
     }
 
+    // Cambio de contraseña o de rol → se cierran todas las sesiones de ese usuario
+    if (updateData.password || (updateData.rol && updateData.rol !== actual.rol)) {
+      updateData.tokenVersion = { increment: 1 };
+    }
+
     let estudianteNested;
     const rolFinal = updateData.rol || actual.rol;
     if (rolFinal === 'ESTUDIANTE' && cursoId) {
@@ -190,7 +195,8 @@ const toggleEstado = async (req, res) => {
 
     const updatedUser = await prisma.usuario.update({
       where: { id },
-      data: { activo: !user.activo },
+      // Activar o desactivar → las sesiones anteriores dejan de valer
+      data: { activo: !user.activo, tokenVersion: { increment: 1 } },
       select: {
         id: true,
         nombre: true,

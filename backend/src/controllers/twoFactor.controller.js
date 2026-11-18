@@ -1,6 +1,7 @@
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const prisma = require('../lib/prisma');
+const { cifrar, descifrar } = require('../lib/cifrado');
 
 // POST /api/auth/2fa/setup — requiere JWT final. Genera secreto y QR.
 const setup = async (req, res) => {
@@ -17,7 +18,7 @@ const setup = async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: user.id },
-      data: { twoFactorSecret: secret.base32, twoFactorEnabled: false },
+      data: { twoFactorSecret: cifrar(secret.base32), twoFactorEnabled: false },
     });
 
     const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url);
@@ -43,7 +44,7 @@ const verifySetup = async (req, res) => {
     }
 
     const valido = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: descifrar(user.twoFactorSecret),
       encoding: 'base32',
       token: String(code).trim(),
       window: 1,
@@ -76,7 +77,8 @@ const disable = async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: user.id },
-      data: { twoFactorSecret: null, twoFactorEnabled: false },
+      // Sin 2FA → se cierran todas las sesiones abiertas
+      data: { twoFactorSecret: null, twoFactorEnabled: false, tokenVersion: { increment: 1 } },
     });
 
     res.json({ ok: true, message: '2FA desactivado' });

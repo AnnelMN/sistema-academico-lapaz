@@ -57,8 +57,13 @@ model Usuario {
   actualizadoEn DateTime @updatedAt
 
   // --- 2FA TOTP (Google Authenticator) ---
+  // twoFactorSecret se guarda CIFRADO (AES-256-GCM, ver src/lib/cifrado.js)
   twoFactorSecret  String?
   twoFactorEnabled Boolean @default(false)
+
+  // Versión de sesión: al cambiarla, todos los tokens anteriores dejan de valer
+  // (cambio de contraseña, de rol, desactivación o "cerrar todas las sesiones")
+  tokenVersion Int @default(0)
 
   estudiante Estudiante?
   docente    Docente?
@@ -322,4 +327,27 @@ model CodigoVerificacion {
 
   @@index([usuarioId, usado])
   @@map("codigos_verificacion")
+}
+
+// ─────────────────────────────────────────────
+// TABLA NUEVA: AuditoriaCambio — historial de cambios en notas y asistencia
+// (quién cambió qué, cuándo, valor anterior y nuevo). Solo lo consulta el
+// Director; nadie puede editarlo ni borrarlo desde la API.
+// ─────────────────────────────────────────────
+model AuditoriaCambio {
+  id                  String   @id @default(uuid())
+  entidad             String
+  accion              String
+  entidadId           String?
+  materiaProgramadaId String?
+  estudianteId        String?
+  valorAnterior       Json?
+  valorNuevo          Json?
+  usuarioId           String
+  creadoEn            DateTime @default(now())
+
+  @@index([creadoEn])
+  @@index([materiaProgramadaId])
+  @@index([estudianteId])
+  @@map("auditoria_cambios")
 }

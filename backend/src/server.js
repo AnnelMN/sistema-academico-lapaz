@@ -52,6 +52,7 @@ app.use('/api/estudiante', require('./routes/estudiante.routes'));
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/predicciones', prediccionesRoutes);
 app.use('/api/reportes', reportesRoutes);
+app.use('/api/auditoria', require('./routes/auditoria.routes'));
 
 // Global error handler
 app.use((err, req, res, next) => {

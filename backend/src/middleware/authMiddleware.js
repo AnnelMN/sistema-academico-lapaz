@@ -29,11 +29,18 @@ const authMiddleware = (roles = []) => {
     try {
       const usuario = await prisma.usuario.findUnique({
         where: { id: decoded.id },
-        select: { id: true, email: true, rol: true, activo: true },
+        select: { id: true, email: true, rol: true, activo: true, tokenVersion: true },
       });
 
       if (!usuario || !usuario.activo) {
         return res.status(401).json({ error: 'Sesión no válida: usuario inexistente o desactivado' });
+      }
+
+      // Revocación de sesiones: si la versión del token no coincide con la del
+      // usuario (cambió su contraseña o su rol, lo desactivaron o cerró todas
+      // sus sesiones), el token ya no vale. Tokens antiguos sin versión = 0.
+      if ((decoded.tv ?? 0) !== usuario.tokenVersion) {
+        return res.status(401).json({ error: 'Sesión cerrada: vuelva a iniciar sesión' });
       }
 
       req.user = { id: usuario.id, email: usuario.email, rol: usuario.rol };

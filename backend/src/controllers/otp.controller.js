@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const { cifrar, descifrar } = require('../lib/cifrado');
 const { enviarCodigoVerificacion } = require('../services/emailService');
 
 const OTP_TTL_MIN = 5;       // vigencia del código
@@ -48,7 +49,7 @@ function emitirTempToken(userId) {
 
 function emitirJWT(user) {
   return jwt.sign(
-    { id: user.id, rol: user.rol, email: user.email },
+    { id: user.id, rol: user.rol, email: user.email, tv: user.tokenVersion },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
   );
@@ -147,7 +148,7 @@ const loginConOTP = async (req, res) => {
       const speakeasy = require('speakeasy');
       const QRCode = require('qrcode');
 
-      let secret = user.twoFactorSecret;
+      let secret = descifrar(user.twoFactorSecret);
       if (!secret) {
         const s = speakeasy.generateSecret({
           name: `UELA La Paz A (${user.email})`,
@@ -155,7 +156,7 @@ const loginConOTP = async (req, res) => {
           length: 32,
         });
         secret = s.base32;
-        await prisma.usuario.update({ where: { id: user.id }, data: { twoFactorSecret: secret } });
+        await prisma.usuario.update({ where: { id: user.id }, data: { twoFactorSecret: cifrar(secret) } });
       }
 
       const otpauth = speakeasy.otpauthURL({
@@ -308,7 +309,7 @@ const activarDesdeLogin = async (req, res) => {
 
     const speakeasy = require('speakeasy');
     const valido = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: descifrar(user.twoFactorSecret),
       encoding: 'base32',
       token: String(code).trim(),
       window: 1,

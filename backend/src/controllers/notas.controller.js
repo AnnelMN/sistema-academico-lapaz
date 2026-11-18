@@ -6,6 +6,7 @@ const {
   cargarContexto, calcularDesdeContexto, recalcularNotas,
 } = require('../services/calificacionService');
 const { evaluarRiesgo } = require('../services/riesgoService');
+const { accionDe, registrarCambios } = require('../services/auditoriaService');
 
 // ════════════════════════════════════════════════════════════════════
 // Notas por casillas (escala SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5)
@@ -229,16 +230,25 @@ exports.guardarCasillas = async (req, res) => {
     }
 
     await prisma.$transaction(async (tx) => {
+      const cambios = [];
+      const auditar = (accion, casilla, valorAnterior, valorNuevo) => cambios.push({
+        entidad: 'CASILLA', accion, entidadId: casilla.id, materiaProgramadaId, usuarioId: req.user.id, valorAnterior, valorNuevo,
+      });
+
       // La casilla de asistencia de SER existe siempre y es la primera
       const asistencia = existentes.find((c) => c.esAsistencia);
       if (!asistencia) {
-        await tx.casilla.create({
+        const creada = await tx.casilla.create({
           data: { materiaProgramadaId, trimestre, dimension: 'SER', orden: 1, nombre: 'Asistencia', esAsistencia: true },
         });
+        auditar('CREAR', creada, null, { trimestre, dimension: 'SER', nombre: 'Asistencia', esAsistencia: true });
       }
 
       if (eliminar.length) {
         await tx.casilla.deleteMany({ where: { id: { in: eliminar.map((c) => c.id) } } });
+        for (const c of eliminar) {
+          auditar('ELIMINAR', c, { trimestre, dimension: c.dimension, nombre: c.nombre, notasRegistradas: c._count.calificaciones }, null);
+        }
       }
 
       for (const dimension of Object.keys(plan)) {
@@ -248,16 +258,21 @@ exports.guardarCasillas = async (req, res) => {
         let orden = inicio;
         for (const c of plan[dimension].conservar) {
           await tx.casilla.update({ where: { id: c.id }, data: { orden, nombre: nombres.get(c.id) } });
+          if ((c.nombre ?? null) !== (nombres.get(c.id) ?? null)) {
+            auditar('MODIFICAR', c, { trimestre, dimension, nombre: c.nombre }, { trimestre, dimension, nombre: nombres.get(c.id) });
+          }
           orden += 1;
         }
         // Agrega las nuevas al final
         for (const item of plan[dimension].items.filter((i) => !i.id)) {
-          await tx.casilla.create({ data: { materiaProgramadaId, trimestre, dimension, orden, nombre: item.nombre } });
+          const creada = await tx.casilla.create({ data: { materiaProgramadaId, trimestre, dimension, orden, nombre: item.nombre } });
+          auditar('CREAR', creada, null, { trimestre, dimension, nombre: item.nombre });
           orden += 1;
         }
       }
 
       await recalcularNotas(materiaProgramadaId, trimestre, { cliente: tx });
+      await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
 
     res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true }));
@@ -325,6 +340,39 @@ exports.guardarCalificaciones = async (req, res) => {
 
     let resultados;
     await prisma.$transaction(async (tx) => {
+      // Valores anteriores, para la auditoría (quién cambió qué y desde qué valor)
+      const previas = await tx.calificacionCasilla.findMany({
+        where: { casillaId: { in: [...new Set(calificaciones.map((c) => c.casillaId))] }, estudianteId: { in: afectados } },
+        select: { casillaId: true, estudianteId: true, valor: true },
+      });
+      const valorPrevio = new Map(previas.map((p) => [`${p.estudianteId}|${p.casillaId}`, p.valor]));
+      const autoPrevias = new Map((await tx.nota.findMany({
+        where: { materiaProgramadaId, trimestre, estudianteId: { in: [...autoPorEstudiante.keys()] } },
+        select: { estudianteId: true, autoevaluacion: true },
+      })).map((n) => [n.estudianteId, n.autoevaluacion]));
+
+      const cambios = [];
+      for (const c of calificaciones) {
+        const anterior = valorPrevio.get(`${c.estudianteId}|${c.casillaId}`) ?? null;
+        if (anterior === c.valor) continue;
+        cambios.push({
+          entidad: 'CALIFICACION_CASILLA', accion: accionDe(anterior, c.valor), entidadId: c.casillaId,
+          materiaProgramadaId, estudianteId: c.estudianteId, usuarioId: req.user.id,
+          valorAnterior: anterior === null ? null : { valor: anterior, trimestre },
+          valorNuevo: c.valor === null ? null : { valor: c.valor, trimestre },
+        });
+      }
+      for (const [estudianteId, valor] of autoPorEstudiante) {
+        const anterior = autoPrevias.get(estudianteId) ?? null;
+        if (anterior === valor) continue;
+        cambios.push({
+          entidad: 'AUTOEVALUACION', accion: accionDe(anterior, valor),
+          materiaProgramadaId, estudianteId, usuarioId: req.user.id,
+          valorAnterior: anterior === null ? null : { valor: anterior, trimestre },
+          valorNuevo: valor === null ? null : { valor, trimestre },
+        });
+      }
+
       for (const c of calificaciones) {
         if (c.valor === null) {
           await tx.calificacionCasilla.deleteMany({ where: { casillaId: c.casillaId, estudianteId: c.estudianteId } });
@@ -342,6 +390,7 @@ exports.guardarCalificaciones = async (req, res) => {
         autoevaluaciones: autoPorEstudiante,
         cliente: tx,
       });
+      await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
 
     // Riesgo (pausado mientras IA_HABILITADA no sea "true")
