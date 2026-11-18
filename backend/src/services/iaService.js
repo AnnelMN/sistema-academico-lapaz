@@ -31,13 +31,20 @@ exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
     weekly_self_study_hours: 10.0 // Valor por defecto solicitado
   };
 
+  // Clave compartida con el microservicio (solo el backend puede pedir predicciones)
+  const iaApiKey = process.env.IA_API_KEY;
+  if (!iaApiKey) throw new Error('IA_API_KEY no está configurada');
+
   try {
     const response = await fetch(`${iaServiceUrl}/predecir`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': iaApiKey,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      // El ciclo nota → predicción debe completarse en menos de 5 segundos
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {

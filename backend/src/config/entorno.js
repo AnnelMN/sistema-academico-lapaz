@@ -31,8 +31,11 @@ function validarEntorno() {
     }
     if (process.env.IA_HABILITADA === 'true') {
       requerida('IA_SERVICE_URL');
+      requerida('IA_API_KEY');
       const url = process.env.IA_SERVICE_URL || '';
       if (url && !url.startsWith('https://')) errores.push('IA_SERVICE_URL debe usar https:// en producción');
+      const clave = process.env.IA_API_KEY || '';
+      if (clave && clave.length < 32) errores.push('IA_API_KEY debe tener al menos 32 caracteres');
     }
   } else if (!process.env.FRONTEND_URL) {
     avisos.push(`FRONTEND_URL no está definida: CORS solo aceptará ${ORIGEN_DESARROLLO}`);
