@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// URL del backend: en producción (Vercel) DEBE venir de VITE_API_URL; el
+// localhost solo se usa al desarrollar en la computadora (P-03).
+const urlBackend = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV ? 'http://localhost:3000' : '');
+if (!urlBackend) {
+  console.error('Falta VITE_API_URL: configúrala en Vercel con la dirección https del backend.');
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: urlBackend,
   headers: {
     'Content-Type': 'application/json',
   },

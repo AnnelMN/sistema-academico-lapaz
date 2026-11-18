@@ -434,7 +434,7 @@ Usar como referencia para detectar avances y regresiones. **Re-verificar siempre
 | LB-04 | Alta | 7, 12 | `upsertNota` y `registrarAsistencia` no validan que el estudiante pertenezca al curso de la programación; permiten escribir datos y disparar correos a tutores de otros cursos. |
 | LB-05 | Alta | 6, C | `authMiddleware` no consulta `activo` ni rol en BD: usuarios desactivados conservan acceso hasta 8h. |
 | LB-06 | Alta | 20 | Backend: 4 vulnerabilidades (1 crítica `proxy-addr` vía express, 2 altas incl. nodemailer, 1 moderada `qs`). Frontend: 19 (mayoría en herramientas de desarrollo). `requirements.txt` sin versiones fijas. |
-| LB-07 | Alta | 2 | Historial publicado contiene la contraseña inicial del Director (`AGENTS.md`), contraseñas demo (`seed.js`) y un JWT expirado; commit de limpieza `8132ac2` pendiente de push. |
+| LB-07 | Alta | 2 | Historial publicado contiene la contraseña inicial del Director (`AGENTS.md`), contraseñas demo (`seed.js`) y un JWT expirado; commit de limpieza `8132ac2` pendiente de push. **Estado 2026-11-18:** contraseña del Director ya cambiada; las 12 cuentas inactivas recibieron contraseña aleatoria (`scripts/invalidarContrasenasInactivas.js`) ✅ |
 | LB-08 | Media | 5 | `twoFactorSecret` en texto plano; `DATABASE_URL`/`DIRECT_URL` sin `sslmode=require`. |
 | LB-09 | Media | 11 | Límite de intentos en `Map` en memoria por email: sin límite por IP, se reinicia, permite bloqueo dirigido de cuentas. |
 | LB-10 | Media | 17 | `forgotPassword` incluye en el JWT temporal 16 caracteres del hash bcrypt y permite deducir si la cuenta existe y tiene 2FA. |
@@ -448,7 +448,7 @@ Usar como referencia para detectar avances y regresiones. **Re-verificar siempre
 | LB-18 | Baja | — | `asistencia.controller.js` (`getEstudiantesConAsistencia`): `docente` usado fuera de su ámbito → error 500 para profesores (falla cerrada). |
 | LB-19 | Info | — | `otp.controller.js` no está montado en ninguna ruta (código muerto). |
 | LB-20 | Info | 16 | No existe subida de archivos (control 16 = N/A). |
-| LB-21 | Info | B, C, D, H | Sin auditoría de cambios, sin `tokenVersion`, sin Gitleaks, respaldos sin verificar. |
+| LB-21 | Info | B, C, D, H | Sin auditoría de cambios, sin `tokenVersion`, sin Gitleaks, respaldos sin verificar. **Estado 2026-11-18:** B y C ✅ (grupo 4); D ✅ con `.githooks/pre-commit` + Dependabot (repo privado: GitHub no ofrece push protection gratis); H ✅ parcial con `scripts/respaldarBD.js` (restauración aún no probada) |
 
 ---
 

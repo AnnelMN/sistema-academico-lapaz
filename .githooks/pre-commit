@@ -1,0 +1,4 @@
+#!/bin/sh
+# Antes de cada commit: bloquea si se intenta guardar un secreto (control D).
+# Activar una vez en cada copia del repositorio:  git config core.hooksPath .githooks
+node "$(git rev-parse --show-toplevel)/.githooks/detectar-secretos.js"

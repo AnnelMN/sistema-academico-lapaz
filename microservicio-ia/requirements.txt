@@ -1,7 +1,15 @@
-fastapi>=0.111.0
-uvicorn
-scikit-learn>=1.5.1
-pandas>=2.2.2
-numpy>=1.26.4
-joblib
-python-dotenv
+# Versiones EXACTAS (P-01): Render instala siempre las mismas que el entorno
+# local, así el modelo se carga igual y no entran versiones nuevas sin revisar.
+# Para actualizar: cambiar aquí, probar en local y volver a entrenar el modelo
+# con la misma versión de scikit-learn (modelo_riesgo.pkl debe crearse con ella).
+fastapi==0.143.0
+starlette==1.7.0
+pydantic==2.14.0
+uvicorn==0.54.0
+scikit-learn==1.9.1
+scipy==1.18.1
+threadpoolctl==3.7.0
+pandas==3.0.6
+numpy==2.5.4
+joblib==1.6.0
+python-dotenv==1.2.4

@@ -1,0 +1,23 @@
+# Dependabot: avisa (con un pull request) cuando hay versiones nuevas de las
+# dependencias, sobre todo si corrigen vulnerabilidades. Gratis en repos privados.
+# Antes de aceptar un PR: revisar que la versión tenga al menos 2 semanas
+# publicada y probar con npm test / npm run build.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /microservicio-ia
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

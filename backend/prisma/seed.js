@@ -48,9 +48,9 @@ const seedDemoData = async (db) => {
 
   console.log('Creating demo users...');
   const [adminPassword, profesorPassword, estudiantePassword] = await Promise.all([
-    bcrypt.hash(administrativoDemo.password, 10),
-    bcrypt.hash(profesorDemo.password, 10),
-    bcrypt.hash(estudianteDemo.password, 10),
+    bcrypt.hash(administrativoDemo.password, 12),
+    bcrypt.hash(profesorDemo.password, 12),
+    bcrypt.hash(estudianteDemo.password, 12),
   ]);
 
   const administrativo = await db.usuario.upsert({
@@ -238,7 +238,7 @@ async function main(db) {
 
   if (initialDirector) {
     console.log('Creating initial Director...');
-    const hashedPassword = await bcrypt.hash(initialDirector.password, 10);
+    const hashedPassword = await bcrypt.hash(initialDirector.password, 12);
     const director = await db.usuario.upsert({
       where: { email: initialDirector.email },
       update: {},
