@@ -1,11 +1,13 @@
 require('dotenv').config();
-const { aplicarValidacionEntorno, origenesPermitidos } = require('./config/entorno');
+const { aplicarValidacionEntorno, origenesPermitidos, esProduccion } = require('./config/entorno');
 
 // Antes de nada: en producción no arranca con configuración insegura o incompleta
 aplicarValidacionEntorno();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const { limiteGeneral, limiteAutenticacion } = require('./middleware/limites');
 
 const authRoutes = require('./routes/auth.routes');
 const usuariosRoutes = require('./routes/usuarios.routes');
@@ -16,8 +18,25 @@ const reportesRoutes = require('./routes/reportes.routes');
 
 const app = express();
 
+// En Railway hay un proxy delante: se confía en él para conocer la IP real
+// (necesaria para los límites de solicitudes). En local no hay proxy.
+if (esProduccion()) app.set('trust proxy', 1);
+
+// Encabezados de seguridad (LB-12): oculta X-Powered-By, HSTS, nosniff,
+// CSP restrictiva para las respuestas de la API, etc.
+app.use(helmet());
+
 // CORS: solo los orígenes de FRONTEND_URL (nunca '*')
 app.use(cors({ origin: origenesPermitidos() }));
+
+// Límites de solicitudes (LB-09): general para toda la API y estricto para
+// los intentos fallidos de login, 2FA y recuperación de contraseña
+app.use('/api', limiteGeneral);
+app.use(
+  ['/api/auth/login', '/api/auth/2fa/authenticate', '/api/auth/2fa/setup-authenticate',
+    '/api/auth/forgot-password', '/api/auth/reset-password'],
+  limiteAutenticacion
+);
 // Límite explícito del cuerpo JSON: 1 MB alcanza para guardar de una sola vez
 // la planilla de notas más grande (≈ 8 800 casillas); el valor por defecto
 // de Express (100 KB) rechazaba planillas de cursos grandes.

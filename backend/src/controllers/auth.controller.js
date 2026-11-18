@@ -30,8 +30,9 @@ const isRateLimited = (attempts, key) => {
 };
 
 const recordFailure = (attempts, key) => {
-  const attempt = attempts.get(key) || { count: 0, blockedUntil: 0 };
+  const attempt = attempts.get(key) || { count: 0, blockedUntil: 0, ultimo: 0 };
   attempt.count += 1;
+  attempt.ultimo = Date.now();
   if (attempt.count >= MAX_ATTEMPTS) {
     attempt.blockedUntil = Date.now() + LOCK_TIME_MS;
     attempt.count = 0;
@@ -43,6 +44,22 @@ const clearFailures = (attempts, key) => {
   attempts.delete(key);
 };
 
+// Clave de intentos por IP + cuenta (LB-09): quien falla desde una red no
+// bloquea a la misma cuenta cuando entra desde otra (evita el bloqueo dirigido,
+// p. ej. contra el Director). El límite por IP está en middleware/limites.js.
+const claveIntentos = (req, cuenta) => `${req.ip}|${cuenta}`;
+
+// Limpieza periódica: los registros vencidos se borran para que la memoria no crezca
+const limpiarIntentos = () => {
+  const ahora = Date.now();
+  for (const mapa of [loginAttempts, twoFactorAttempts, passwordResetAttempts]) {
+    for (const [clave, intento] of mapa) {
+      if (intento.blockedUntil < ahora && intento.ultimo < ahora - LOCK_TIME_MS) mapa.delete(clave);
+    }
+  }
+};
+setInterval(limpiarIntentos, 10 * 60 * 1000).unref();
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -52,7 +69,7 @@ const login = async (req, res) => {
     }
 
     const emailKey = String(email).trim().toLowerCase();
-    if (isRateLimited(loginAttempts, emailKey)) {
+    if (isRateLimited(loginAttempts, claveIntentos(req, emailKey))) {
       return res.status(429).json({ error: 'Demasiados intentos. Intente en 15 minutos.' });
     }
 
@@ -65,18 +82,18 @@ const login = async (req, res) => {
     });
 
     if (!user || !user.activo) {
-      recordFailure(loginAttempts, emailKey);
+      recordFailure(loginAttempts, claveIntentos(req, emailKey));
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      recordFailure(loginAttempts, emailKey);
+      recordFailure(loginAttempts, claveIntentos(req, emailKey));
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    clearFailures(loginAttempts, emailKey);
+    clearFailures(loginAttempts, claveIntentos(req, emailKey));
 
     // PASO 1 de 2FA: si tiene 2FA activo, emitir pre-token corto y pedir código TOTP.
     if (user.twoFactorEnabled) {
@@ -339,7 +356,7 @@ const resetPassword = async (req, res) => {
       return res.status(401).json({ error: 'Token no válido para recuperación' });
     }
 
-    const resetKey = `reset:${decoded.email}`;
+    const resetKey = claveIntentos(req, `reset:${decoded.email}`);
     if (isRateLimited(passwordResetAttempts, resetKey)) {
       return res.status(429).json({ error: 'Demasiados intentos. Intente en 15 minutos.' });
     }
