@@ -1,3 +1,5 @@
+const { esProduccion } = require('../config/entorno');
+
 // La predicción automática está PAUSADA salvo que IA_HABILITADA=true.
 // Motivo: el modelo actual se entrenó con un dataset que no corresponde al colegio
 // y sus resultados no son confiables. Mientras esté pausada no se guardan
@@ -18,7 +20,9 @@ exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
     return null;
   }
 
-  const iaServiceUrl = process.env.IA_SERVICE_URL || 'http://localhost:8000';
+  // localhost solo como respaldo en desarrollo; en producción la URL es obligatoria
+  const iaServiceUrl = process.env.IA_SERVICE_URL || (esProduccion() ? null : 'http://localhost:8000');
+  if (!iaServiceUrl) throw new Error('IA_SERVICE_URL no está configurada');
   
   const payload = {
     attendance_percentage: attendancePercentage,

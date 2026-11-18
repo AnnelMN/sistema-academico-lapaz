@@ -12,11 +12,13 @@ const fallosLogin = new Map(); // email -> { count, bloqueadoHasta }
 const MAX_FALLOS = 10;
 const BLOQUEO_MIN = 10;
 
+// HMAC del código con una clave derivada de JWT_SECRET (separada por propósito).
+// Sin valor por defecto: si falta JWT_SECRET, falla en lugar de usar una clave conocida.
+// Nota: este controlador no está conectado a ninguna ruta (hallazgo LB-19).
 function hashCodigo(codigo) {
-  return crypto
-    .createHash('sha256')
-    .update(String(codigo) + (process.env.JWT_SECRET || 'pepper'))
-    .digest('hex');
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET no está configurado');
+  const clave = crypto.createHash('sha256').update(`email-otp:${process.env.JWT_SECRET}`).digest();
+  return crypto.createHmac('sha256', clave).update(String(codigo)).digest('hex');
 }
 
 function generarCodigo() {

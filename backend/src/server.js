@@ -1,4 +1,9 @@
 require('dotenv').config();
+const { aplicarValidacionEntorno, origenesPermitidos } = require('./config/entorno');
+
+// Antes de nada: en producción no arranca con configuración insegura o incompleta
+aplicarValidacionEntorno();
+
 const express = require('express');
 const cors = require('cors');
 
@@ -11,7 +16,8 @@ const reportesRoutes = require('./routes/reportes.routes');
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+// CORS: solo los orígenes de FRONTEND_URL (nunca '*')
+app.use(cors({ origin: origenesPermitidos() }));
 // Límite explícito del cuerpo JSON: 1 MB alcanza para guardar de una sola vez
 // la planilla de notas más grande (≈ 8 800 casillas); el valor por defecto
 // de Express (100 KB) rechazaba planillas de cursos grandes.

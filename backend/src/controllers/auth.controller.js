@@ -1,8 +1,22 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const prisma = require('../lib/prisma');
+const { esContrasenaRobusta, MENSAJE_CONTRASENA } = require('../lib/validaciones');
+
+// Huella del hash de la contraseña para el token de recuperación: un HMAC que
+// no revela nada del hash (antes se enviaban sus primeros 16 caracteres) y que
+// deja de servir en cuanto la contraseña cambia (token de un solo uso).
+const claveHuella = () => crypto.createHash('sha256').update(`password-reset:${process.env.JWT_SECRET}`).digest();
+const huellaDe = (hashContrasena) => crypto.createHmac('sha256', claveHuella()).update(hashContrasena).digest('base64url');
+const huellasIguales = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
 
 const loginAttempts = new Map();
 const twoFactorAttempts = new Map();
@@ -28,13 +42,6 @@ const recordFailure = (attempts, key) => {
 const clearFailures = (attempts, key) => {
   attempts.delete(key);
 };
-
-const isStrongPassword = (password) => (
-  typeof password === 'string'
-  && password.length >= 10
-  && /[A-Za-z]/.test(password)
-  && /\d/.test(password)
-);
 
 const login = async (req, res) => {
   try {
@@ -288,9 +295,11 @@ const forgotPassword = async (req, res) => {
 
     const emailKey = String(email).trim().toLowerCase();
     const user = await prisma.usuario.findUnique({ where: { email: emailKey } });
+    // Cuenta válida → HMAC del hash; si no, un valor aleatorio del mismo tamaño:
+    // la respuesta es indistinguible y no permite saber si la cuenta existe.
     const fingerprint = user?.activo && user?.twoFactorEnabled && user?.twoFactorSecret
-      ? user.password.slice(0, 16)
-      : 'unavailable';
+      ? huellaDe(user.password)
+      : crypto.randomBytes(32).toString('base64url');
 
     const tempToken = jwt.sign(
       { email: emailKey, purpose: 'password-reset-pending', fingerprint },
@@ -315,8 +324,8 @@ const resetPassword = async (req, res) => {
     if (!tempToken || !/^\d{6}$/.test(String(code || '').trim()) || !newPassword) {
       return res.status(400).json({ error: 'Token, código de 6 dígitos y nueva contraseña requeridos' });
     }
-    if (!isStrongPassword(newPassword)) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 10 caracteres, una letra y un número' });
+    if (!esContrasenaRobusta(newPassword)) {
+      return res.status(400).json({ error: MENSAJE_CONTRASENA });
     }
 
     let decoded;
@@ -336,7 +345,7 @@ const resetPassword = async (req, res) => {
     }
 
     const user = await prisma.usuario.findUnique({ where: { email: decoded.email } });
-    const validFingerprint = user?.password?.startsWith(decoded.fingerprint);
+    const validFingerprint = Boolean(user?.password) && huellasIguales(huellaDe(user.password), decoded.fingerprint);
 
     if (!user || !user.activo || !user.twoFactorEnabled || !user.twoFactorSecret || !validFingerprint) {
       recordFailure(passwordResetAttempts, resetKey);
@@ -357,7 +366,7 @@ const resetPassword = async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: user.id },
-      data: { password: await bcrypt.hash(newPassword, 10) },
+      data: { password: await bcrypt.hash(newPassword, 12) },
     });
 
     clearFailures(passwordResetAttempts, resetKey);

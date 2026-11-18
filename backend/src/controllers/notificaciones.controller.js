@@ -1,5 +1,9 @@
 const prisma = require('../lib/prisma');
 const { enviarNotificacionManual } = require('../services/emailService');
+const { esIdValido } = require('../lib/acceso');
+
+// Longitud máxima del mensaje manual a los tutores
+const MAX_MENSAJE = 2000;
 
 const TIPO_LABELS = {
   RIESGO_ALTO: 'Riesgo alto',
@@ -79,8 +83,12 @@ const enviarManual = async (req, res) => {
     const { estudianteId, tipo, mensaje } = req.body;
     const mensajeLimpio = String(mensaje || '').trim();
 
-    if (!estudianteId || !tipo || !mensajeLimpio) {
+    if (!esIdValido(estudianteId) || !tipo || !mensajeLimpio) {
       return res.status(400).json({ error: 'Estudiante, tipo y mensaje son requeridos' });
+    }
+
+    if (mensajeLimpio.length > MAX_MENSAJE) {
+      return res.status(400).json({ error: `El mensaje no puede superar ${MAX_MENSAJE} caracteres` });
     }
 
     if (!Object.keys(TIPO_LABELS).includes(tipo)) {
@@ -120,7 +128,7 @@ const enviarManual = async (req, res) => {
 
       return res.status(201).json({ ok: true, notificacion });
     } catch (emailError) {
-      console.error('Manual notification email failed:', emailError);
+      console.error('Manual notification email failed:', emailError.message);
 
       const notificacion = await prisma.notificacion.create({
         data: {
