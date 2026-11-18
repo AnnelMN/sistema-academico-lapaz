@@ -11,6 +11,7 @@ const {
 } = require('../services/periodoService');
 const { recalcularNotas } = require('../services/calificacionService');
 const { accionDe, registrarCambios } = require('../services/auditoriaService');
+const qrAsistencia = require('../services/qrAsistenciaService');
 
 const ESTADOS_VALIDOS = new Set(['PRESENTE', 'AUSENTE', 'JUSTIFICADO']);
 const MAX_REGISTROS_POR_LISTA = 200;
@@ -111,6 +112,192 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
   }
 };
 
+// Reglas de fecha para REGISTRAR asistencia (registro manual y por QR):
+// válida, de lunes a viernes, no futura, del trimestre activo y de la gestión de la materia.
+// Devuelve { periodo } o { status, error }.
+async function validarFechaDeRegistro(fecha, materiaProgramadaId) {
+  if (!esFechaISOValida(fecha)) {
+    return { status: 400, error: 'Fecha inválida (formato AAAA-MM-DD)' };
+  }
+  if (!esDiaHabil(fecha)) {
+    return { status: 400, error: 'Solo se registra asistencia de lunes a viernes' };
+  }
+  if (fecha > hoyLaPaz()) {
+    return { status: 400, error: 'No se puede registrar asistencia de una fecha futura' };
+  }
+  const [periodo, activo] = await Promise.all([periodoDeFecha(fecha), periodoActivo()]);
+  if (!periodo) {
+    return { status: 400, error: 'La fecha no pertenece a ningún trimestre (vacaciones o día de descanso)' };
+  }
+  if (!activo || periodo.gestion !== activo.gestion || periodo.trimestre !== activo.trimestre) {
+    return { status: 403, error: 'Solo se registra asistencia del trimestre activo' };
+  }
+  const programacionGestion = await prisma.materiaProgramada.findUnique({
+    where: { id: materiaProgramadaId }, select: { gestion: true },
+  });
+  if (programacionGestion.gestion !== periodo.gestion) {
+    return { status: 400, error: 'La fecha no corresponde a la gestión de esta materia' };
+  }
+  return { periodo };
+}
+
+// Después de guardar asistencia (manual o por QR): recalcula la casilla de
+// asistencia de SER, consulta la IA (si está habilitada) y revisa el límite de faltas.
+async function procesarTrasRegistro(materiaProgramadaId, periodo, estudianteIds) {
+  // Actualizar la casilla de asistencia de SER en las notas del trimestre
+  try {
+    await recalcularNotas(materiaProgramadaId, periodo.trimestre, { estudianteIds });
+  } catch (calcError) {
+    console.error('Error recalculando notas tras la asistencia:', calcError.message);
+  }
+
+  // --- INTEGRACION CON IA Y NOTIFICACIONES ---
+  const config = await prisma.configuracion.findFirst();
+  const limiteFaltas = config?.limiteFaltas || 25;
+
+  for (const estudianteId of estudianteIds) {
+    try {
+      // 1. Obtener datos del estudiante
+      const estudiante = await prisma.estudiante.findUnique({
+        where: { id: estudianteId },
+        include: { usuario: true }
+      });
+      if (!estudiante) continue;
+
+      // 2. Calcular porcentaje de asistencia en esta materia
+      const asistencias = await prisma.asistencia.findMany({
+        where: { estudianteId, materiaProgramadaId }
+      });
+      const statsAsistencia = contarAsistencia(asistencias);
+      const faltas = statsAsistencia.faltas;
+      const porcentajeAsistencia = statsAsistencia.porcentaje ?? 100;
+
+      // 3. Obtener promedio de notas del trimestre (según la fecha registrada)
+      const trimestreActivo = periodo.trimestre;
+      const notas = await prisma.nota.findMany({
+        where: { estudianteId, trimestre: trimestreActivo }
+      });
+      let promedioNotas = 0;
+      if (notas.length > 0) {
+        promedioNotas = notas.reduce((sum, n) => sum + n.total, 0) / notas.length;
+      }
+
+      // 4. Llamar al microservicio IA
+      let prediccionData;
+      try {
+        prediccionData = await iaService.predecirRiesgo({
+          totalScore: promedioNotas,
+          attendancePercentage: porcentajeAsistencia
+        });
+      } catch (iaError) {
+        console.warn(`IA no disponible para estudiante ${estudianteId}:`, iaError.message);
+      }
+
+      // 5. Guardar prediccion si existe
+      if (prediccionData) {
+        await prisma.prediccionRiesgo.create({
+          data: {
+            estudianteId,
+            nivelRiesgo: prediccionData.nivel_riesgo,
+            probabilidad: prediccionData.probabilidad,
+            promedioNotas,
+            porcentajeAsistencia,
+            trimestre: trimestreActivo
+          }
+        });
+
+        // 6. Si es RIESGO_ALTO, enviar correo al tutor
+        if (prediccionData.nivel_riesgo === 'RIESGO_ALTO' && estudiante.emailTutor) {
+          try {
+            const programacion = await prisma.materiaProgramada.findUnique({
+              where: { id: materiaProgramadaId },
+              include: { materia: true }
+            });
+            const materiaNombre = programacion?.materia?.nombre || 'General';
+
+            await emailService.enviarAlertaRiesgo(
+              estudiante.usuario.nombre,
+              materiaNombre,
+              prediccionData,
+              estudiante.emailTutor
+            );
+            await prisma.notificacion.create({
+              data: {
+                estudianteId,
+                tipo: 'RIESGO_ALTO',
+                emailDestino: estudiante.emailTutor,
+                estadoEnvio: 'ENVIADO',
+                mensaje: `Alerta por Riesgo Alto (${(prediccionData.probabilidad * 100).toFixed(1)}%) en asistencia`
+              }
+            });
+          } catch (emailError) {
+            console.error('Error enviando correo RIESGO_ALTO:', emailError.message);
+            await prisma.notificacion.create({
+              data: {
+                estudianteId,
+                tipo: 'RIESGO_ALTO',
+                emailDestino: estudiante.emailTutor || 'desconocido',
+                estadoEnvio: 'FALLIDO',
+                mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
+              }
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // 7. Verificar exceso de faltas
+      if (faltas > limiteFaltas && estudiante.emailTutor) {
+        const yaNotificado = await prisma.notificacion.findFirst({
+          where: {
+            estudianteId,
+            tipo: 'EXCESO_FALTAS',
+            estadoEnvio: 'ENVIADO'
+          }
+        });
+        if (!yaNotificado) {
+          try {
+            const programacion = await prisma.materiaProgramada.findUnique({
+              where: { id: materiaProgramadaId },
+              include: { materia: true }
+            });
+            const materiaNombre = programacion?.materia?.nombre || 'General';
+
+            await emailService.enviarAlertaInasistencia(
+              estudiante.usuario.nombre,
+              materiaNombre,
+              faltas,
+              limiteFaltas,
+              estudiante.emailTutor
+            );
+            await prisma.notificacion.create({
+              data: {
+                estudianteId,
+                tipo: 'EXCESO_FALTAS',
+                emailDestino: estudiante.emailTutor,
+                estadoEnvio: 'ENVIADO',
+                mensaje: `Exceso de faltas: ${faltas}/${limiteFaltas} en ${materiaNombre}`
+              }
+            });
+          } catch (emailError) {
+            console.error('Error enviando correo EXCESO_FALTAS:', emailError.message);
+            await prisma.notificacion.create({
+              data: {
+                estudianteId,
+                tipo: 'EXCESO_FALTAS',
+                emailDestino: estudiante.emailTutor || 'desconocido',
+                estadoEnvio: 'FALLIDO',
+                mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
+              }
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (estError) {
+      console.error(`Error procesando estudiante ${estudianteId}:`, estError.message);
+    }
+  }
+}
+
 // ─────────────────────────────────────────────
 // POST /api/asistencia
 // Registra o actualiza la asistencia de todos los estudiantes para una fecha
@@ -151,28 +338,11 @@ exports.registrarAsistencia = async (req, res) => {
     }
 
     // Reglas de fecha: válida, de lunes a viernes, no futura y dentro del trimestre activo
-    if (!esFechaISOValida(fecha)) {
-      return res.status(400).json({ error: 'Fecha inválida (formato AAAA-MM-DD)' });
+    const reglaFecha = await validarFechaDeRegistro(fecha, materiaProgramadaId);
+    if (reglaFecha.error) {
+      return res.status(reglaFecha.status).json({ error: reglaFecha.error });
     }
-    if (!esDiaHabil(fecha)) {
-      return res.status(400).json({ error: 'Solo se registra asistencia de lunes a viernes' });
-    }
-    if (fecha > hoyLaPaz()) {
-      return res.status(400).json({ error: 'No se puede registrar asistencia de una fecha futura' });
-    }
-    const [periodo, activo] = await Promise.all([periodoDeFecha(fecha), periodoActivo()]);
-    if (!periodo) {
-      return res.status(400).json({ error: 'La fecha no pertenece a ningún trimestre (vacaciones o día de descanso)' });
-    }
-    if (!activo || periodo.gestion !== activo.gestion || periodo.trimestre !== activo.trimestre) {
-      return res.status(403).json({ error: 'Solo se registra asistencia del trimestre activo' });
-    }
-    const programacionGestion = await prisma.materiaProgramada.findUnique({
-      where: { id: materiaProgramadaId }, select: { gestion: true },
-    });
-    if (programacionGestion.gestion !== periodo.gestion) {
-      return res.status(400).json({ error: 'La fecha no corresponde a la gestión de esta materia' });
-    }
+    const { periodo } = reglaFecha;
 
     const fechaDate = new Date(`${fecha}T12:00:00.000Z`); // Mediodía UTC para evitar problemas de zona horaria
 
@@ -220,158 +390,7 @@ exports.registrarAsistencia = async (req, res) => {
     // Obtener todos los estudiantes unicos afectados
     const estudianteIds = [...new Set(registros.map(r => r.estudianteId))];
 
-    // Actualizar la casilla de asistencia de SER en las notas del trimestre
-    try {
-      await recalcularNotas(materiaProgramadaId, periodo.trimestre, { estudianteIds });
-    } catch (calcError) {
-      console.error('Error recalculando notas tras la asistencia:', calcError.message);
-    }
-
-    // --- INTEGRACION CON IA Y NOTIFICACIONES ---
-    const config = await prisma.configuracion.findFirst();
-    const limiteFaltas = config?.limiteFaltas || 25;
-
-    for (const estudianteId of estudianteIds) {
-      try {
-        // 1. Obtener datos del estudiante
-        const estudiante = await prisma.estudiante.findUnique({
-          where: { id: estudianteId },
-          include: { usuario: true }
-        });
-        if (!estudiante) continue;
-
-        // 2. Calcular porcentaje de asistencia en esta materia
-        const asistencias = await prisma.asistencia.findMany({
-          where: { estudianteId, materiaProgramadaId }
-        });
-        const statsAsistencia = contarAsistencia(asistencias);
-        const faltas = statsAsistencia.faltas;
-        const porcentajeAsistencia = statsAsistencia.porcentaje ?? 100;
-
-        // 3. Obtener promedio de notas del trimestre (según la fecha registrada)
-        const trimestreActivo = periodo.trimestre;
-        const notas = await prisma.nota.findMany({
-          where: { estudianteId, trimestre: trimestreActivo }
-        });
-        let promedioNotas = 0;
-        if (notas.length > 0) {
-          promedioNotas = notas.reduce((sum, n) => sum + n.total, 0) / notas.length;
-        }
-
-        // 4. Llamar al microservicio IA
-        let prediccionData;
-        try {
-          prediccionData = await iaService.predecirRiesgo({
-            totalScore: promedioNotas,
-            attendancePercentage: porcentajeAsistencia
-          });
-        } catch (iaError) {
-          console.warn(`IA no disponible para estudiante ${estudianteId}:`, iaError.message);
-        }
-
-        // 5. Guardar prediccion si existe
-        if (prediccionData) {
-          await prisma.prediccionRiesgo.create({
-            data: {
-              estudianteId,
-              nivelRiesgo: prediccionData.nivel_riesgo,
-              probabilidad: prediccionData.probabilidad,
-              promedioNotas,
-              porcentajeAsistencia,
-              trimestre: trimestreActivo
-            }
-          });
-
-          // 6. Si es RIESGO_ALTO, enviar correo al tutor
-          if (prediccionData.nivel_riesgo === 'RIESGO_ALTO' && estudiante.emailTutor) {
-            try {
-              const programacion = await prisma.materiaProgramada.findUnique({
-                where: { id: materiaProgramadaId },
-                include: { materia: true }
-              });
-              const materiaNombre = programacion?.materia?.nombre || 'General';
-
-              await emailService.enviarAlertaRiesgo(
-                estudiante.usuario.nombre,
-                materiaNombre,
-                prediccionData,
-                estudiante.emailTutor
-              );
-              await prisma.notificacion.create({
-                data: {
-                  estudianteId,
-                  tipo: 'RIESGO_ALTO',
-                  emailDestino: estudiante.emailTutor,
-                  estadoEnvio: 'ENVIADO',
-                  mensaje: `Alerta por Riesgo Alto (${(prediccionData.probabilidad * 100).toFixed(1)}%) en asistencia`
-                }
-              });
-            } catch (emailError) {
-              console.error('Error enviando correo RIESGO_ALTO:', emailError.message);
-              await prisma.notificacion.create({
-                data: {
-                  estudianteId,
-                  tipo: 'RIESGO_ALTO',
-                  emailDestino: estudiante.emailTutor || 'desconocido',
-                  estadoEnvio: 'FALLIDO',
-                  mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
-                }
-              }).catch(() => {});
-            }
-          }
-        }
-
-        // 7. Verificar exceso de faltas
-        if (faltas > limiteFaltas && estudiante.emailTutor) {
-          const yaNotificado = await prisma.notificacion.findFirst({
-            where: {
-              estudianteId,
-              tipo: 'EXCESO_FALTAS',
-              estadoEnvio: 'ENVIADO'
-            }
-          });
-          if (!yaNotificado) {
-            try {
-              const programacion = await prisma.materiaProgramada.findUnique({
-                where: { id: materiaProgramadaId },
-                include: { materia: true }
-              });
-              const materiaNombre = programacion?.materia?.nombre || 'General';
-
-              await emailService.enviarAlertaInasistencia(
-                estudiante.usuario.nombre,
-                materiaNombre,
-                faltas,
-                limiteFaltas,
-                estudiante.emailTutor
-              );
-              await prisma.notificacion.create({
-                data: {
-                  estudianteId,
-                  tipo: 'EXCESO_FALTAS',
-                  emailDestino: estudiante.emailTutor,
-                  estadoEnvio: 'ENVIADO',
-                  mensaje: `Exceso de faltas: ${faltas}/${limiteFaltas} en ${materiaNombre}`
-                }
-              });
-            } catch (emailError) {
-              console.error('Error enviando correo EXCESO_FALTAS:', emailError.message);
-              await prisma.notificacion.create({
-                data: {
-                  estudianteId,
-                  tipo: 'EXCESO_FALTAS',
-                  emailDestino: estudiante.emailTutor || 'desconocido',
-                  estadoEnvio: 'FALLIDO',
-                  mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
-                }
-              }).catch(() => {});
-            }
-          }
-        }
-      } catch (estError) {
-        console.error(`Error procesando estudiante ${estudianteId}:`, estError.message);
-      }
-    }
+    await procesarTrasRegistro(materiaProgramadaId, periodo, estudianteIds);
 
     res.json({ guardados: resultados.length, fecha: fechaDate });
   } catch (error) {
@@ -432,5 +451,101 @@ exports.getHistorialAsistencia = async (req, res) => {
   } catch (error) {
     console.error('Error en getHistorialAsistencia:', error);
     res.status(500).json({ error: 'Error al obtener historial de asistencia' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/asistencia/qr   (solo PROFESOR)
+// Registra PRESENTE de HOY escaneando el QR dinámico del estudiante.
+// Body: { materiaProgramadaId, codigo }
+// Nunca modifica un registro existente (si ya tiene asistencia hoy, lo informa).
+// ─────────────────────────────────────────────
+exports.registrarAsistenciaQR = async (req, res) => {
+  try {
+    const { materiaProgramadaId, codigo } = req.body || {};
+
+    if (!qrAsistencia.qrConfigurado()) {
+      return res.status(503).json({ error: 'El registro por QR no está configurado en el servidor' });
+    }
+
+    // 1. La materia debe ser del docente autenticado
+    const acceso = await verificarAccesoProgramacion(req.user, materiaProgramadaId);
+    if (acceso.error) {
+      return res.status(acceso.status).json({ error: acceso.error });
+    }
+
+    // 2. Solo la fecha de HOY (La Paz), con las mismas reglas que el registro manual
+    const fecha = hoyLaPaz();
+    const reglaFecha = await validarFechaDeRegistro(fecha, materiaProgramadaId);
+    if (reglaFecha.error) {
+      return res.status(reglaFecha.status).json({ error: reglaFecha.error });
+    }
+    const { periodo } = reglaFecha;
+
+    // 3. Identificar al estudiante (el código lo valida SOLO el servidor)
+    const respuestaInvalido = () => res.status(400).json({
+      resultado: 'INVALIDO',
+      error: 'Código QR inválido o vencido. Pide al estudiante que abra su QR otra vez.',
+    });
+    if (!qrAsistencia.esFormatoValido(codigo)) return respuestaInvalido();
+
+    const candidatos = await prisma.estudiante.findMany({
+      where: { usuario: { activo: true } },
+      select: { id: true, cursoId: true },
+    });
+    const estudianteId = qrAsistencia.identificar(codigo, candidatos.map((c) => c.id));
+    if (!estudianteId) {
+      console.warn(`QR de asistencia rechazado (docente ${req.user.id}, materia ${materiaProgramadaId})`);
+      return respuestaInvalido();
+    }
+
+    // 4. Debe estar inscrito en el curso de esta materia (sin revelar datos de otros cursos)
+    const cursoDelEstudiante = candidatos.find((c) => c.id === estudianteId).cursoId;
+    if (cursoDelEstudiante !== acceso.programacion.cursoId) {
+      return res.status(403).json({
+        resultado: 'NO_INSCRITO',
+        error: 'Este estudiante no está inscrito en esta materia',
+      });
+    }
+
+    // 5. Registrar PRESENTE (o informar que ya tenía asistencia hoy) + auditoría
+    const fechaDate = new Date(`${fecha}T12:00:00.000Z`); // mismo criterio que el registro manual
+    let registro;
+    try {
+      registro = await prisma.$transaction((tx) => qrAsistencia.registrarPresente(tx, {
+        estudianteId, materiaProgramadaId, fecha, fechaDate, usuarioId: req.user.id,
+      }));
+    } catch (error) {
+      if (error.code !== 'P2002') throw error;
+      // Dos lecturas simultáneas del mismo QR: la otra ya lo registró
+      const actual = await prisma.asistencia.findUnique({
+        where: { estudianteId_materiaProgramadaId_fecha: { estudianteId, materiaProgramadaId, fecha: fechaDate } },
+        select: { estado: true },
+      });
+      registro = { creado: false, estado: actual?.estado ?? 'PRESENTE' };
+    }
+
+    // 6. Mismo proceso posterior que el registro manual (casilla de SER, IA, faltas)
+    if (registro.creado) {
+      await procesarTrasRegistro(materiaProgramadaId, periodo, [estudianteId]);
+    }
+
+    // 7. Resumen de la sesión (hoy, esta materia)
+    const [estudiante, inscritos, registrados] = await Promise.all([
+      prisma.estudiante.findUnique({ where: { id: estudianteId }, select: { usuario: { select: { nombre: true } } } }),
+      prisma.estudiante.count({ where: { cursoId: acceso.programacion.cursoId } }),
+      prisma.asistencia.count({ where: { materiaProgramadaId, fecha: fechaDate } }),
+    ]);
+
+    res.json({
+      resultado: registro.creado ? 'REGISTRADO' : 'YA_REGISTRADO',
+      estudiante: { id: estudianteId, nombre: estudiante.usuario.nombre },
+      estado: registro.estado,
+      fecha,
+      resumen: { inscritos, registrados, pendientes: Math.max(inscritos - registrados, 0) },
+    });
+  } catch (error) {
+    console.error('Error en registrarAsistenciaQR:', error);
+    res.status(500).json({ error: 'Error al registrar la asistencia por QR' });
   }
 };

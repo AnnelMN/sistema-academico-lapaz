@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import SidebarLayout from '../../components/layout/SidebarLayout';
 import { getMisMaterias } from '../../services/notas.service';
 import { getEstudiantesConAsistencia, registrarAsistencia } from '../../services/asistencia.service';
-import { Save, CheckCircle, AlertCircle, Info, Users } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Info, Users, ClipboardList, QrCode } from 'lucide-react';
+import EscanerQR from '../../components/asistencia/EscanerQR';
 
 // ─── Helpers ─────────────────────────────────
 const today = () => new Date().toISOString().split('T')[0];
@@ -77,6 +78,7 @@ export default function RegistroAsistencia() {
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [message, setMessage]         = useState(null);
+  const [modo, setModo]               = useState('manual'); // 'manual' | 'qr'
 
   // Cargar materias del docente
   useEffect(() => {
@@ -168,6 +170,39 @@ export default function RegistroAsistencia() {
       headerSubtitle="Control diario por materia y curso"
     >
       <div className="space-y-5">
+
+        {/* Modalidad de registro: manual (P/A/J) o rápido por QR (solo PRESENTE) */}
+        <div className="inline-flex rounded-md overflow-hidden border border-slate-200 bg-white" role="tablist">
+          {[
+            { id: 'manual', label: 'Registro manual', Icono: ClipboardList },
+            { id: 'qr',     label: 'Registro mediante QR', Icono: QrCode },
+          ].map(({ id, label, Icono }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={modo === id}
+              onClick={() => {
+                if (id === 'manual' && modo === 'qr') cargarEstudiantes(); // muestra lo registrado por QR
+                setModo(id);
+              }}
+              className={`px-4 py-2 text-[11px] font-bold flex items-center gap-2 border-r last:border-r-0 border-slate-200 transition-colors ${
+                modo === id ? 'bg-[#4a90e2] text-white' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Icono size={14} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {modo === 'qr' ? (
+          <EscanerQR
+            materias={materias}
+            materiaId={materiaId}
+            onCambiarMateria={setMateriaId}
+            onVolver={() => { cargarEstudiantes(); setModo('manual'); }}
+          />
+        ) : (<>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -315,6 +350,7 @@ export default function RegistroAsistencia() {
           </table>
         </div>
 
+        </>)}
       </div>
     </SidebarLayout>
   );

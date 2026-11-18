@@ -2,6 +2,8 @@ const prisma = require('../lib/prisma');
 const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
 const { periodoActivo, hoyLaPaz } = require('../services/periodoService');
 const { DIMENSIONES, cargarContexto, valorAsistencia, notaAnual } = require('../services/calificacionService');
+const QRCode = require('qrcode');
+const qrAsistencia = require('../services/qrAsistenciaService');
 
 // Obtener el perfil del estudiante autenticado
 const getEstudiantePerfil = async (usuarioId) => {
@@ -205,5 +207,27 @@ exports.getMiPrediccion = async (req, res) => {
   } catch (error) {
     console.error('Error en getMiPrediccion:', error);
     res.status(500).json({ error: 'Error al obtener predicción IA' });
+  }
+};
+
+// 6. Mi código QR de asistencia (dinámico: cambia cada 30 s).
+//    GET /api/estudiante/qr → { imagen (PNG en data URL), segundosRestantes, expiraEn }
+//    El QR solo contiene un código aleatorio firmado por el servidor; ningún dato personal.
+exports.getMiQR = async (req, res) => {
+  try {
+    if (!qrAsistencia.qrConfigurado()) {
+      return res.status(503).json({ error: 'El código QR de asistencia no está disponible por ahora' });
+    }
+    const estudiante = await getEstudiantePerfil(req.user.id);
+    const { contenido, segundosRestantes, expiraEn } = qrAsistencia.generarContenido(estudiante.id);
+    const imagen = await QRCode.toDataURL(contenido, { errorCorrectionLevel: 'M', margin: 2, width: 320 });
+    res.set('Cache-Control', 'no-store');
+    res.json({ imagen, segundosRestantes, expiraEn });
+  } catch (error) {
+    if (error.message === 'Perfil de estudiante no encontrado') {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error('Error en getMiQR:', error);
+    res.status(500).json({ error: 'No se pudo generar tu código QR' });
   }
 };

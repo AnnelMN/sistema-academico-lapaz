@@ -14,6 +14,7 @@ const EstudianteLayout = () => {
         { label: 'Mis notas',     path: '/estudiante/notas',       dotHex: '#FF9500' },
         { label: 'Mi horario',    path: '/estudiante/horario',     dotHex: '#34C759' },
         { label: 'Mi asistencia', path: '/estudiante/asistencia',  dotHex: '#FF3B30' },
+        { label: 'Mi código QR',  path: '/estudiante/qr',          dotHex: '#5856D6' },
         { label: 'Mi predicción', path: '/estudiante/prediccion',  dotHex: '#AF52DE' },
       ]
     }

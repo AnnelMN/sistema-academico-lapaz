@@ -18,3 +18,10 @@ export const getHistorialAsistencia = async (estudianteId, materiaProgramadaId) 
   });
   return response.data;
 };
+
+// Registro rápido por QR: el servidor valida el código y marca PRESENTE de hoy.
+// Respuesta: { resultado: 'REGISTRADO' | 'YA_REGISTRADO', estudiante: { id, nombre }, estado, fecha, resumen }
+export const registrarAsistenciaQR = async (materiaProgramadaId, codigo) => {
+  const response = await api.post('/api/asistencia/qr', { materiaProgramadaId, codigo });
+  return response.data;
+};

@@ -29,6 +29,12 @@ function validarEntorno() {
     );
   }
 
+  // Clave del QR dinámico de asistencia: sin ella el registro por QR queda desactivado
+  const claveQR = process.env.QR_SECRET || '';
+  if (claveQR.length < 32) {
+    avisos.push('QR_SECRET no está configurada (mínimo 32 caracteres): el registro de asistencia por QR queda desactivado');
+  }
+
   // Conexión cifrada con la base de datos (LB-08)
   for (const nombre of ['DATABASE_URL', 'DIRECT_URL']) {
     const url = process.env[nombre];

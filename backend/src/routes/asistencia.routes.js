@@ -15,6 +15,13 @@ router.post(
   asistenciaController.registrarAsistencia
 );
 
+// Registro rápido por QR dinámico del estudiante (solo marca PRESENTE de hoy)
+router.post(
+  '/qr',
+  authMiddleware(['PROFESOR']),
+  asistenciaController.registrarAsistenciaQR
+);
+
 router.get(
   '/historial',
   authMiddleware(['PROFESOR', 'DIRECTOR', 'ESTUDIANTE']),

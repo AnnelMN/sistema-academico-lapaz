@@ -29,6 +29,7 @@ import Notas from './pages/estudiante/Notas';
 import Horario from './pages/estudiante/Horario';
 import Asistencia from './pages/estudiante/Asistencia';
 import Prediccion from './pages/estudiante/Prediccion';
+import MiQR from './pages/estudiante/MiQR';
 import { useAuth } from './context/AuthContext';
 
 function App() {
@@ -87,6 +88,7 @@ function App() {
           <Route path="horario" element={<Horario />} />
           <Route path="asistencia" element={<Asistencia />} />
           <Route path="prediccion" element={<Prediccion />} />
+          <Route path="qr" element={<MiQR />} />
         </Route>
       </Route>
 

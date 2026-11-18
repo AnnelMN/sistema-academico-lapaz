@@ -21,6 +21,12 @@ const estudianteService = {
   getMiPrediccion: async () => {
     const response = await api.get('/api/estudiante/prediccion');
     return response.data;
+  },
+
+  // QR dinámico de asistencia: { imagen (data URL), segundosRestantes, expiraEn }
+  getMiQR: async () => {
+    const response = await api.get('/api/estudiante/qr');
+    return response.data;
   }
 };
 

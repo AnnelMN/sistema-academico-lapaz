@@ -10,5 +10,6 @@ router.get('/notas', estudianteController.getMisNotas);
 router.get('/horario', estudianteController.getMiHorario);
 router.get('/asistencia', estudianteController.getMiAsistencia);
 router.get('/prediccion', estudianteController.getMiPrediccion);
+router.get('/qr', estudianteController.getMiQR);
 
 module.exports = router;
