@@ -293,7 +293,7 @@ exports.registrarAsistencia = async (req, res) => {
                   tipo: 'RIESGO_ALTO',
                   emailDestino: estudiante.emailTutor || 'desconocido',
                   estadoEnvio: 'FALLIDO',
-                  mensaje: `Fallo al enviar correo: ${emailError.message}`
+                  mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
                 }
               }).catch(() => {});
             }
@@ -341,7 +341,7 @@ exports.registrarAsistencia = async (req, res) => {
                   tipo: 'EXCESO_FALTAS',
                   emailDestino: estudiante.emailTutor || 'desconocido',
                   estadoEnvio: 'FALLIDO',
-                  mensaje: `Fallo al enviar correo: ${emailError.message}`
+                  mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
                 }
               }).catch(() => {});
             }

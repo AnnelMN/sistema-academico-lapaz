@@ -12,7 +12,10 @@ const reportesRoutes = require('./routes/reportes.routes');
 const app = express();
 
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
-app.use(express.json());
+// Límite explícito del cuerpo JSON: 1 MB alcanza para guardar de una sola vez
+// la planilla de notas más grande (≈ 8 800 casillas); el valor por defecto
+// de Express (100 KB) rechazaba planillas de cursos grandes.
+app.use(express.json({ limit: '1mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -27,6 +30,13 @@ app.use('/api/reportes', reportesRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
+  // Errores al leer el cuerpo de la solicitud: son del cliente, no del servidor
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Los datos enviados son demasiado grandes' });
+  }
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Formato de datos inválido' });
+  }
   console.error('Error no manejado:', err.stack);
   res.status(500).json({ error: 'Error interno del servidor' });
 });

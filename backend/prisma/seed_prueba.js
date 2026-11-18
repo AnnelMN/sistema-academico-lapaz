@@ -2,8 +2,9 @@
 // (escala real SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5) en los
 // trimestres 1 y 2, para cada materia de 3ro A del profesor demo.
 //
-// Requiere en backend/.env: DEMO_PROFESOR_EMAIL y DEMO_ESTUDIANTE_PASSWORD
-// (y haber ejecutado antes el seed principal con SEED_DEMO_DATA=true).
+// Requiere en backend/.env: SEED_DEMO_DATA=true, DEMO_PROFESOR_EMAIL y
+// DEMO_ESTUDIANTE_PASSWORD (y haber ejecutado antes el seed principal).
+// Se niega a ejecutarse con NODE_ENV=production.
 //   node prisma/seed_prueba.js           → aplica los cambios
 //   node prisma/seed_prueba.js --ensayo  → prueba todo y lo deshace al final
 //
@@ -31,6 +32,14 @@ async function main(db) {
   console.log('\n==============================');
   console.log('  SEED DE DATOS DE PRUEBA');
   console.log('==============================\n');
+
+  // Candado: los datos de prueba nunca deben cargarse en producción
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('seed_prueba.js no se ejecuta con NODE_ENV=production');
+  }
+  if (process.env.SEED_DEMO_DATA !== 'true') {
+    throw new Error('seed_prueba.js requiere SEED_DEMO_DATA=true en backend/.env (solo en desarrollo)');
+  }
 
   const emailProfesor = String(process.env.DEMO_PROFESOR_EMAIL || '').trim().toLowerCase();
   const contrasenaEstudiantes = process.env.DEMO_ESTUDIANTE_PASSWORD;
