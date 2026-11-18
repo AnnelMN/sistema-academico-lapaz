@@ -1,157 +1,109 @@
+// Datos de prueba: 5 estudiantes en 3ro A con notas y asistencias de ejemplo
+// (escala real SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5) en los
+// trimestres 1 y 2, para cada materia de 3ro A del profesor demo.
+//
+// Requiere en backend/.env: DEMO_PROFESOR_EMAIL y DEMO_ESTUDIANTE_PASSWORD
+// (y haber ejecutado antes el seed principal con SEED_DEMO_DATA=true).
+//   node prisma/seed_prueba.js           → aplica los cambios
+//   node prisma/seed_prueba.js --ensayo  → prueba todo y lo deshace al final
+//
+// Los nombres son ficticios y los correos de tutor usan example.com (dominio
+// reservado para ejemplos): nunca se envía correo a una persona real.
+// Las cuentas que ya existen NO cambian de contraseña ni se reactivan.
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-require('dotenv').config();
+const { asegurarPeriodos, crearNotasDeEjemplo, ejecutarSeed } = require('./seedHelpers');
 
 const prisma = new PrismaClient();
 
-async function main() {
+const esContrasenaRobusta = (p) => typeof p === 'string' && p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p);
+
+const ESTUDIANTES = [
+  { nombre: 'Juan Mamani',   email: 'juan.mamani@estudiante.edu.bo',   emailTutor: 'tutor.mamani@example.com',  perfil: 'bajo' },
+  { nombre: 'María Quispe',  email: 'maria.quispe@estudiante.edu.bo',  emailTutor: 'tutor.quispe@example.com',  perfil: 'alto' },
+  { nombre: 'Carlos Flores', email: 'carlos.flores@estudiante.edu.bo', emailTutor: 'tutor.flores@example.com',  perfil: 'medio' },
+  { nombre: 'Ana Condori',   email: 'ana.condori@estudiante.edu.bo',   emailTutor: 'tutor.condori@example.com', perfil: 'alto' },
+  { nombre: 'Luis Vargas',   email: 'luis.vargas@estudiante.edu.bo',   emailTutor: 'tutor.vargas@example.com',  perfil: 'bajo' },
+];
+
+async function main(db) {
   console.log('\n==============================');
   console.log('  SEED DE DATOS DE PRUEBA');
   console.log('==============================\n');
 
-  const salt = await bcrypt.genSalt(10);
-
-  // ─────────────────────────────────────────
-  // 1. VERIFICAR / CREAR CURSO 3ro A
-  // ─────────────────────────────────────────
-  console.log('1. Verificando curso 3ro A...');
-  const curso3A = await prisma.curso.findFirst({ where: { nivel: 3, paralelo: 'A' } });
-  if (!curso3A) {
-    console.error('   ❌ Curso 3ro A no existe. Ejecuta el seed principal primero.');
-    return;
+  const emailProfesor = String(process.env.DEMO_PROFESOR_EMAIL || '').trim().toLowerCase();
+  const contrasenaEstudiantes = process.env.DEMO_ESTUDIANTE_PASSWORD;
+  if (!emailProfesor) throw new Error('Falta DEMO_PROFESOR_EMAIL en backend/.env');
+  if (!esContrasenaRobusta(contrasenaEstudiantes)) {
+    throw new Error('DEMO_ESTUDIANTE_PASSWORD debe existir en backend/.env y tener al menos 10 caracteres, una letra y un número');
   }
-  console.log(`   ✅ Curso 3ro A encontrado: ${curso3A.id}`);
 
-  // ─────────────────────────────────────────
-  // 2. VERIFICAR PROFESOR Y SU PERFIL DOCENTE
-  // ─────────────────────────────────────────
-  console.log('\n2. Verificando profesor María García...');
-  const usuarioProfesor = await prisma.usuario.findUnique({
-    where: { email: 'profesor@lapaz.edu.bo' }
+  await asegurarPeriodos(db);
+
+  // 1. Curso 3ro A
+  const curso3A = await db.curso.findFirst({ where: { nivel: 3, paralelo: 'A' } });
+  if (!curso3A) throw new Error('El curso 3ro A no existe. Ejecuta primero el seed principal.');
+  console.log('1. ✅ Curso 3ro A encontrado');
+
+  // 2. Profesor demo y su perfil docente
+  const usuarioProfesor = await db.usuario.findUnique({ where: { email: emailProfesor } });
+  const docente = usuarioProfesor && await db.docente.findUnique({ where: { usuarioId: usuarioProfesor.id } });
+  if (!docente) throw new Error('No se encontró el profesor demo (DEMO_PROFESOR_EMAIL). Ejecuta primero el seed principal.');
+  console.log(`2. ✅ Profesor demo: ${usuarioProfesor.nombre}`);
+
+  // 3. Materias del docente en 3ro A (gestión 2026)
+  const asignaciones = await db.materiaProgramada.findMany({
+    where: { docenteId: docente.id, cursoId: curso3A.id, gestion: 2026 },
+    include: { materia: true },
   });
+  if (!asignaciones.length) throw new Error('El profesor demo no tiene materias en 3ro A (2026). Ejecuta primero el seed principal.');
+  console.log(`3. ✅ Materias en 3ro A: ${asignaciones.map((a) => a.materia.nombre).join(', ')}`);
 
-  if (!usuarioProfesor) {
-    console.error('   ❌ Profesor no encontrado. Ejecuta el seed principal primero.');
-    return;
-  }
-  console.log(`   ✅ Usuario profesor encontrado: ${usuarioProfesor.nombre}`);
-
-  const docenteProfile = await prisma.docente.findUnique({
-    where: { usuarioId: usuarioProfesor.id }
-  });
-
-  if (!docenteProfile) {
-    console.error('   ❌ Perfil de docente no existe. Ejecuta el seed principal primero.');
-    return;
-  }
-  console.log(`   ✅ Perfil de docente encontrado: ${docenteProfile.id}`);
-
-  // ─────────────────────────────────────────
-  // 3. VERIFICAR MATERIAS ASIGNADAS AL DOCENTE
-  // ─────────────────────────────────────────
-  console.log('\n3. Verificando asignaciones del docente...');
-  const asignaciones = await prisma.materiaProgramada.findMany({
-    where: { docenteId: docenteProfile.id },
-    include: { materia: true, curso: true }
-  });
-
-  if (asignaciones.length === 0) {
-    console.error('   ❌ El docente no tiene materias asignadas. Ejecuta el seed principal primero.');
-    return;
-  }
-
-  for (const a of asignaciones) {
-    console.log(`   ✅ Asignación: ${a.materia.nombre} → ${a.curso.nivel}ro ${a.curso.paralelo} (gestion ${a.gestion})`);
-  }
-
-  // ─────────────────────────────────────────
-  // 4. CREAR USUARIOS ESTUDIANTES
-  // ─────────────────────────────────────────
-  console.log('\n4. Creando estudiantes...');
-
-  const estudiantesData = [
-    { nombre: 'Juan Mamani',   email: 'juan.mamani@estudiante.edu.bo',   emailTutor: 'tutor.mamani@gmail.com' },
-    { nombre: 'María Quispe',  email: 'maria.quispe@estudiante.edu.bo',  emailTutor: 'tutor.quispe@gmail.com' },
-    { nombre: 'Carlos Flores', email: 'carlos.flores@estudiante.edu.bo', emailTutor: 'tutor.flores@gmail.com' },
-    { nombre: 'Ana Condori',   email: 'ana.condori@estudiante.edu.bo',   emailTutor: 'tutor.condori@gmail.com' },
-    { nombre: 'Luis Vargas',   email: 'luis.vargas@estudiante.edu.bo',   emailTutor: 'tutor.vargas@gmail.com' },
-  ];
-
-  const passwordEstudiante = await bcrypt.hash('Estudiante2026!', salt);
-
-  for (const e of estudiantesData) {
-    // Crear o recuperar usuario
-    const usuario = await prisma.usuario.upsert({
+  // 4. Estudiantes (las cuentas existentes no cambian de contraseña ni de estado)
+  console.log('\n4. Estudiantes...');
+  const hash = await bcrypt.hash(contrasenaEstudiantes, 12);
+  const estudiantes = [];
+  for (const e of ESTUDIANTES) {
+    const usuario = await db.usuario.upsert({
       where: { email: e.email },
       update: { nombre: e.nombre },
-      create: {
-        nombre: e.nombre,
-        email: e.email,
-        password: passwordEstudiante,
-        rol: 'ESTUDIANTE',
-        activo: true
+      create: { nombre: e.nombre, email: e.email, password: hash, rol: 'ESTUDIANTE', activo: true },
+    });
+    const perfil = await db.estudiante.upsert({
+      where: { usuarioId: usuario.id },
+      update: { cursoId: curso3A.id, gestion: 2026, emailTutor: e.emailTutor },
+      create: { usuarioId: usuario.id, cursoId: curso3A.id, gestion: 2026, emailTutor: e.emailTutor },
+    });
+    estudiantes.push({ id: perfil.id, perfil: e.perfil, nombre: e.nombre, activo: usuario.activo });
+    console.log(`   ✅ ${e.nombre} (${e.perfil}${usuario.activo ? '' : ', cuenta INACTIVA'})`);
+  }
+
+  // 5. Notas y asistencias de ejemplo en los trimestres 1 y 2
+  console.log('\n5. Notas de ejemplo...');
+  for (const a of asignaciones) {
+    for (const trimestre of [1, 2]) {
+      const r = await crearNotasDeEjemplo(db, {
+        materiaProgramadaId: a.id,
+        trimestre,
+        estudiantes,
+        registradoPorId: usuarioProfesor.id,
+      });
+      if (!r.creado) {
+        console.log(`   ⚠️  ${a.materia.nombre} T${trimestre}: ya tenía casillas, no se modificó`);
+        continue;
       }
-    });
-
-    // Crear o recuperar perfil estudiante
-    const estudianteExistente = await prisma.estudiante.findUnique({
-      where: { usuarioId: usuario.id }
-    });
-
-    if (!estudianteExistente) {
-      await prisma.estudiante.create({
-        data: {
-          usuarioId: usuario.id,
-          cursoId: curso3A.id,
-          gestion: 2026,
-          emailTutor: e.emailTutor
-        }
+      const resumen = estudiantes.map((e) => {
+        const n = r.resultados.get(e.id);
+        return `${e.nombre.split(' ')[0]} ${n ? `${n.total}${n.aprobado ? '' : ' ✗'}` : '—'}`;
       });
-      console.log(`   ✅ Creado: ${e.nombre} (${e.email})`);
-    } else {
-      console.log(`   ⚠️  Ya existía: ${e.nombre} — actualizado cursoId y emailTutor`);
-      await prisma.estudiante.update({
-        where: { usuarioId: usuario.id },
-        data: {
-          cursoId: curso3A.id,
-          gestion: 2026,
-          emailTutor: e.emailTutor
-        }
-      });
+      console.log(`   ✅ ${a.materia.nombre} T${trimestre}: ${resumen.join(' · ')}`);
     }
   }
 
-  // ─────────────────────────────────────────
-  // 5. VERIFICACIÓN FINAL
-  // ─────────────────────────────────────────
-  console.log('\n5. Verificación final en Supabase...');
-
-  const totalEstudiantes = await prisma.estudiante.findMany({
-    where: { cursoId: curso3A.id },
-    include: { usuario: { select: { nombre: true, email: true } } }
-  });
-
-  console.log(`\n   Estudiantes en 3ro A (${totalEstudiantes.length} total):`);
-  for (const est of totalEstudiantes) {
-    console.log(`   • ${est.usuario.nombre} | ${est.usuario.email} | tutor: ${est.emailTutor}`);
-  }
-
-  const totalAsignaciones = await prisma.materiaProgramada.count({
-    where: { docenteId: docenteProfile.id }
-  });
-
-  console.log(`\n   Materias asignadas a Prof. García: ${totalAsignaciones}`);
-
   console.log('\n==============================');
-  console.log('  ✅ SEED COMPLETADO');
+  console.log('  ✅ SEED DE PRUEBA COMPLETADO');
   console.log('==============================\n');
 }
 
-main()
-  .catch((e) => {
-    console.error('\n❌ ERROR EN SEED:', e.message);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+ejecutarSeed(prisma, main);

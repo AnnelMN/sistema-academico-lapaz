@@ -1,6 +1,11 @@
+// Seed principal: configuración, fechas de trimestres, cursos, materias, Director
+// inicial y (con SEED_DEMO_DATA=true) usuarios y notas de ejemplo.
+//   npm run seed                 → aplica los cambios
+//   node prisma/seed.js --ensayo → prueba todo y lo deshace al final
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { asegurarPeriodos, crearNotasDeEjemplo, ejecutarSeed } = require('./seedHelpers');
 
 const prisma = new PrismaClient();
 
@@ -31,7 +36,7 @@ const getDemoUser = (prefix) => {
   return { email, password, nombre };
 };
 
-const seedDemoData = async () => {
+const seedDemoData = async (db) => {
   const administrativoDemo = getDemoUser('ADMINISTRATIVO');
   const profesorDemo = getDemoUser('PROFESOR');
   const estudianteDemo = getDemoUser('ESTUDIANTE');
@@ -48,7 +53,7 @@ const seedDemoData = async () => {
     bcrypt.hash(estudianteDemo.password, 10),
   ]);
 
-  const administrativo = await prisma.usuario.upsert({
+  const administrativo = await db.usuario.upsert({
     where: { email: administrativoDemo.email },
     update: {},
     create: {
@@ -60,7 +65,7 @@ const seedDemoData = async () => {
     },
   });
 
-  const profesor = await prisma.usuario.upsert({
+  const profesor = await db.usuario.upsert({
     where: { email: profesorDemo.email },
     update: {},
     create: {
@@ -72,7 +77,7 @@ const seedDemoData = async () => {
     },
   });
 
-  const estudiante = await prisma.usuario.upsert({
+  const estudiante = await db.usuario.upsert({
     where: { email: estudianteDemo.email },
     update: {},
     create: {
@@ -84,19 +89,19 @@ const seedDemoData = async () => {
     },
   });
 
-  const docente = await prisma.docente.upsert({
+  const docente = await db.docente.upsert({
     where: { usuarioId: profesor.id },
     update: {},
     create: { usuarioId: profesor.id, especialidad: 'Matemáticas' },
   });
 
-  const curso = await prisma.curso.findFirst({ where: { nivel: 3, paralelo: 'A' } });
-  const materia = await prisma.materia.findFirst({ where: { nombre: 'Matemáticas' } });
+  const curso = await db.curso.findFirst({ where: { nivel: 3, paralelo: 'A' } });
+  const materia = await db.materia.findFirst({ where: { nombre: 'Matemáticas' } });
   if (!curso || !materia) {
     throw new Error('No se encontraron el curso 3ro A o la materia Matemáticas');
   }
 
-  const estudiantePerfil = await prisma.estudiante.upsert({
+  const estudiantePerfil = await db.estudiante.upsert({
     where: { usuarioId: estudiante.id },
     update: {},
     create: {
@@ -107,12 +112,12 @@ const seedDemoData = async () => {
     },
   });
 
-  let programacion = await prisma.materiaProgramada.findFirst({
+  let programacion = await db.materiaProgramada.findFirst({
     where: { docenteId: docente.id, materiaId: materia.id, cursoId: curso.id, gestion: 2026 },
   });
 
   if (!programacion) {
-    programacion = await prisma.materiaProgramada.create({
+    programacion = await db.materiaProgramada.create({
       data: {
         docenteId: docente.id,
         materiaId: materia.id,
@@ -123,69 +128,22 @@ const seedDemoData = async () => {
     });
   }
 
-  await prisma.nota.upsert({
-    where: {
-      estudianteId_materiaProgramadaId_trimestre: {
-        estudianteId: estudiantePerfil.id,
-        materiaProgramadaId: programacion.id,
-        trimestre: 1,
-      },
-    },
-    update: {},
-    create: {
-      estudianteId: estudiantePerfil.id,
-      materiaProgramadaId: programacion.id,
-      trimestre: 1,
-      ser: 12,
-      saber: 27,
-      hacer: 30,
-      total: 69,
-      aprobado: true,
-    },
+  // Notas de ejemplo del Trimestre 1 con la escala real (casillas, autoevaluación y
+  // asistencias), calculadas con el mismo servicio que usa el sistema.
+  // No se crean predicciones de riesgo: el modelo de IA aún no es válido.
+  const ejemplo = await crearNotasDeEjemplo(db, {
+    materiaProgramadaId: programacion.id,
+    trimestre: 1,
+    estudiantes: [{ id: estudiantePerfil.id, perfil: 'medio' }],
+    registradoPorId: profesor.id,
   });
-
-  const asistencias = [
-    ['2026-03-02T12:00:00.000Z', 'PRESENTE'],
-    ['2026-03-04T12:00:00.000Z', 'PRESENTE'],
-    ['2026-03-09T12:00:00.000Z', 'PRESENTE'],
-    ['2026-03-11T12:00:00.000Z', 'AUSENTE'],
-    ['2026-03-16T12:00:00.000Z', 'PRESENTE'],
-  ];
-
-  for (const [fecha, estado] of asistencias) {
-    await prisma.asistencia.upsert({
-      where: {
-        estudianteId_materiaProgramadaId_fecha: {
-          estudianteId: estudiantePerfil.id,
-          materiaProgramadaId: programacion.id,
-          fecha: new Date(fecha),
-        },
-      },
-      update: {},
-      create: {
-        estudianteId: estudiantePerfil.id,
-        materiaProgramadaId: programacion.id,
-        fecha: new Date(fecha),
-        estado,
-      },
-    });
-  }
-
-  const prediccionExistente = await prisma.prediccionRiesgo.findFirst({
-    where: { estudianteId: estudiantePerfil.id, trimestre: 1 },
-  });
-
-  if (!prediccionExistente) {
-    await prisma.prediccionRiesgo.create({
-      data: {
-        estudianteId: estudiantePerfil.id,
-        nivelRiesgo: 'SIN_RIESGO',
-        probabilidad: 0.85,
-        promedioNotas: 69,
-        porcentajeAsistencia: 80,
-        trimestre: 1,
-      },
-    });
+  const nota = ejemplo.creado && ejemplo.resultados.get(estudiantePerfil.id);
+  if (nota) {
+    console.log(`Demo notes (T1): SER ${nota.ser} · SABER ${nota.saber} · HACER ${nota.hacer} · AUTO ${nota.autoevaluacion} · TOTAL ${nota.total}`);
+  } else if (ejemplo.omitidos?.includes(estudiantePerfil.id)) {
+    console.log('Demo notes (T1) skipped: the demo student is not enrolled in 3ro A (the demo course).');
+  } else {
+    console.log('Demo notes (T1) already existed; not modified.');
   }
 
   console.log(`Demo Administrativo ready: ${administrativo.email}`);
@@ -218,19 +176,19 @@ const getDirectorFromEnv = () => {
   return { email, password, nombre };
 };
 
-async function main() {
+async function main(db) {
   console.log('Starting seeding...');
 
   const initialDirector = getDirectorFromEnv();
   if (!initialDirector) {
-    const directorCount = await prisma.usuario.count({ where: { rol: 'DIRECTOR', activo: true } });
+    const directorCount = await db.usuario.count({ where: { rol: 'DIRECTOR', activo: true } });
     if (directorCount === 0) {
       throw new Error('No existe un Director activo. Configura INITIAL_DIRECTOR_EMAIL, INITIAL_DIRECTOR_PASSWORD e INITIAL_DIRECTOR_NAME en backend/.env');
     }
     console.log('INITIAL_DIRECTOR_* no configurado; se mantiene el Director existente.');
   }
 
-  await prisma.configuracion.upsert({
+  await db.configuracion.upsert({
     where: { id: 'config-1' },
     update: {},
     create: {
@@ -244,13 +202,17 @@ async function main() {
 
   console.log('Default configuration ready.');
 
+  // Fechas de los trimestres 2026 (definen el trimestre activo y el de cada asistencia)
+  await asegurarPeriodos(db);
+  console.log('Trimester dates 2026 ready.');
+
   const niveles = [1, 2, 3, 4, 5, 6];
   const paralelos = ['A', 'B', 'C', 'D', 'E'];
 
   console.log('Seeding Cursos...');
   for (const nivel of niveles) {
     for (const paralelo of paralelos) {
-      await prisma.curso.upsert({
+      await db.curso.upsert({
         where: { nivel_paralelo: { nivel, paralelo } },
         update: {},
         create: { nivel, paralelo },
@@ -268,16 +230,16 @@ async function main() {
   ];
 
   for (const materia of materiasData) {
-    const existing = await prisma.materia.findFirst({ where: { nombre: materia.nombre } });
+    const existing = await db.materia.findFirst({ where: { nombre: materia.nombre } });
     if (!existing) {
-      await prisma.materia.create({ data: materia });
+      await db.materia.create({ data: materia });
     }
   }
 
   if (initialDirector) {
     console.log('Creating initial Director...');
     const hashedPassword = await bcrypt.hash(initialDirector.password, 10);
-    const director = await prisma.usuario.upsert({
+    const director = await db.usuario.upsert({
       where: { email: initialDirector.email },
       update: {},
       create: {
@@ -294,7 +256,7 @@ async function main() {
   }
 
   if (process.env.SEED_DEMO_DATA === 'true') {
-    await seedDemoData();
+    await seedDemoData(db);
   } else {
     console.log('SEED_DEMO_DATA is not enabled; demo users and academic data were not created.');
   }
@@ -302,11 +264,4 @@ async function main() {
   console.log('Seeding finished.');
 }
 
-main()
-  .catch((error) => {
-    console.error(error.message || error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+ejecutarSeed(prisma, main);
