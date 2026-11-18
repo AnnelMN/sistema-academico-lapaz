@@ -30,7 +30,17 @@ logger = logging.getLogger("microservicio-ia")
 ENTORNO = os.getenv("ENTORNO", "production").strip().lower()
 ES_DESARROLLO = ENTORNO == "development"
 
-IA_API_KEY = os.getenv("IA_API_KEY", "")
+def _clave_valida(valor: str) -> str:
+    """Devuelve la clave solo si es usable: ni vacía, ni el valor de ejemplo de
+    .env.example ("cambia_esto…"), ni menor a 32 caracteres (C-01). Si no, "",
+    y /predecir rechaza todas las solicitudes (falla cerrada)."""
+    valor = (valor or "").strip()
+    if len(valor) < 32 or valor.lower().startswith("cambia_esto"):
+        return ""
+    return valor
+
+
+IA_API_KEY = _clave_valida(os.getenv("IA_API_KEY", ""))
 
 # Ruta al modelo entrenado (configurable por entorno, con valor local por defecto)
 MODEL_PATH = os.getenv("MODEL_PATH", "./model/modelo_riesgo.pkl")
@@ -59,7 +69,7 @@ async def lifespan(_app: FastAPI):
     global _modelo
     _modelo = _cargar_modelo()
     if not IA_API_KEY:
-        logger.warning("IA_API_KEY no está configurada: /predecir rechazará todas las solicitudes")
+        logger.warning("IA_API_KEY no está configurada o no es válida (valor de ejemplo o muy corta): /predecir rechazará todas las solicitudes")
     yield
 
 

@@ -10,6 +10,7 @@
 // comparándolo en tiempo constante. No se guarda nada en la base de datos.
 const crypto = require('crypto');
 const { accionDe, registrarCambios } = require('./auditoriaService');
+const { esClaveValida } = require('../lib/secretos');
 
 const PREFIJO = 'UELPA-QR1:';
 const VENTANA_MS = 30 * 1000;
@@ -18,8 +19,9 @@ const LARGO_CODIGO = 22;                // 22 caracteres base64url ≈ 128 bits
 const FORMATO = new RegExp(`^${PREFIJO.replace(/[-]/g, '\\-')}[A-Za-z0-9_-]{${LARGO_CODIGO}}$`);
 
 const claveQR = () => {
+  // Sin clave, con el valor de ejemplo o demasiado corta → QR desactivado (C-01)
   const clave = process.env.QR_SECRET || '';
-  return clave.length >= 32 ? clave : null;
+  return esClaveValida(clave) ? clave : null;
 };
 const qrConfigurado = () => claveQR() !== null;
 

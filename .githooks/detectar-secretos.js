@@ -6,11 +6,13 @@
 //
 // Se activa con:  git config core.hooksPath .githooks
 // Para un falso positivo, agregar al final de esa línea:  // permitir-secreto
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
-const sh = (cmd) => execSync(cmd, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+// Se llama a git SIN pasar por el shell: un nombre de archivo nunca se interpreta como comando (C-02)
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
-const archivos = sh('git diff --cached --name-only --diff-filter=ACMR').split('\n').filter(Boolean);
+// -z: nombres separados por \0 y sin comillas (admite cualquier carácter)
+const archivos = git('diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').split('\0').filter(Boolean);
 const hallazgos = [];
 
 // 1. Archivos que nunca deben subirse
@@ -38,7 +40,7 @@ const IGNORAR = /(^|\/)(package-lock\.json|.*\.lock|\.githooks\/detectar-secreto
 for (const f of archivos) {
   if (IGNORAR.test(f)) continue;
   let diff;
-  try { diff = sh(`git diff --cached -U0 -- "${f}"`); } catch { continue; }
+  try { diff = git('diff', '--cached', '-U0', '--', f); } catch { continue; }
   let linea = 0;
   for (const l of diff.split('\n')) {
     const cab = l.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);

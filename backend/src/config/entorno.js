@@ -2,6 +2,8 @@
 // En PRODUCCIÓN (NODE_ENV=production) el servidor NO arranca si falta algo
 // importante o si hay una configuración insegura. En desarrollo solo avisa.
 
+const { esMarcador, esClaveValida, LARGO_PRODUCCION } = require('../lib/secretos');
+
 const esProduccion = () => process.env.NODE_ENV === 'production';
 
 const ORIGEN_DESARROLLO = 'http://localhost:5173';
@@ -13,6 +15,13 @@ function validarEntorno() {
 
   requerida('DATABASE_URL');
   requerida('JWT_SECRET');
+
+  // Ningún secreto puede quedar con el valor de ejemplo de .env.example (C-01)
+  for (const nombre of ['JWT_SECRET', 'TOTP_ENC_KEY', 'IA_API_KEY', 'QR_SECRET', 'OTP_PEPPER']) {
+    if (esMarcador(process.env[nombre])) {
+      (esProduccion() ? errores : avisos).push(`${nombre} tiene el valor de ejemplo de .env.example: genera una clave aleatoria`);
+    }
+  }
 
   const secreto = process.env.JWT_SECRET || '';
   if (secreto && secreto.length < 32) {
@@ -31,8 +40,12 @@ function validarEntorno() {
 
   // Clave del QR dinámico de asistencia: sin ella el registro por QR queda desactivado
   const claveQR = process.env.QR_SECRET || '';
-  if (claveQR.length < 32) {
-    avisos.push('QR_SECRET no está configurada (mínimo 32 caracteres): el registro de asistencia por QR queda desactivado');
+  if (!claveQR) {
+    avisos.push('QR_SECRET no está configurada: el registro de asistencia por QR queda desactivado');
+  } else if (!esClaveValida(claveQR, esProduccion() ? LARGO_PRODUCCION : undefined)) {
+    (esProduccion() ? errores : avisos).push(
+      `QR_SECRET no es válida (valor de ejemplo o menos de ${esProduccion() ? LARGO_PRODUCCION : 32} caracteres): el registro por QR queda desactivado`
+    );
   }
 
   // Conexión cifrada con la base de datos (LB-08)
@@ -57,7 +70,7 @@ function validarEntorno() {
       const url = process.env.IA_SERVICE_URL || '';
       if (url && !url.startsWith('https://')) errores.push('IA_SERVICE_URL debe usar https:// en producción');
       const clave = process.env.IA_API_KEY || '';
-      if (clave && clave.length < 32) errores.push('IA_API_KEY debe tener al menos 32 caracteres');
+      if (clave && !esClaveValida(clave, LARGO_PRODUCCION)) errores.push(`IA_API_KEY debe ser una clave aleatoria de al menos ${LARGO_PRODUCCION} caracteres`);
     }
   } else if (!process.env.FRONTEND_URL) {
     avisos.push(`FRONTEND_URL no está definida: CORS solo aceptará ${ORIGEN_DESARROLLO}`);

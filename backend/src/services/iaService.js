@@ -1,4 +1,5 @@
 const { esProduccion } = require('../config/entorno');
+const { esClaveValida } = require('../lib/secretos');
 
 // La predicción automática está PAUSADA salvo que IA_HABILITADA=true.
 // Motivo: el modelo actual se entrenó con un dataset que no corresponde al colegio
@@ -33,7 +34,7 @@ exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
 
   // Clave compartida con el microservicio (solo el backend puede pedir predicciones)
   const iaApiKey = process.env.IA_API_KEY;
-  if (!iaApiKey) throw new Error('IA_API_KEY no está configurada');
+  if (!esClaveValida(iaApiKey)) throw new Error('IA_API_KEY no está configurada o tiene el valor de ejemplo');
 
   try {
     const response = await fetch(`${iaServiceUrl}/predecir`, {
