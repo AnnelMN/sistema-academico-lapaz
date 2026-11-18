@@ -4,7 +4,7 @@
 # con la misma versión de scikit-learn (modelo_riesgo.pkl debe crearse con ella).
 fastapi==0.143.0
 starlette==1.7.0
-pydantic==2.14.0
+pydantic==2.14.3
 uvicorn==0.54.0
 scikit-learn==1.9.1
 scipy==1.18.1
