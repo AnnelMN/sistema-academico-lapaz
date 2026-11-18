@@ -2,7 +2,7 @@
 # local, así el modelo se carga igual y no entran versiones nuevas sin revisar.
 # Para actualizar: cambiar aquí, probar en local y volver a entrenar el modelo
 # con la misma versión de scikit-learn (modelo_riesgo.pkl debe crearse con ella).
-fastapi==0.143.0
+fastapi==0.163.1
 starlette==1.7.0
 pydantic==2.14.0
 uvicorn==0.54.0
