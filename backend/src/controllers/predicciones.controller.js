@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
 
 // GET /api/predicciones/estado — cualquier usuario autenticado puede saber si están disponibles
 const getEstadoPredicciones = (req, res) => {
@@ -22,6 +22,7 @@ const getPrediccionesEstudiantes = async (req, res) => {
     const { cursoId, nivelRiesgo, trimestre } = req.query;
 
     const predicciones = await prisma.prediccionRiesgo.findMany({
+      where: filtroModeloVigente(),   // solo predicciones del modelo vigente
       orderBy: { generadoEn: 'desc' },
       include: {
         estudiante: {

@@ -12,12 +12,16 @@ const PREDICCIONES_SIMULTANEAS = 4;
 // genera un correo por cada nota o asistencia registrada.
 async function yaAvisadoEnTrimestre(estudianteId, gestion, trimestre) {
   const rango = gestion ? await rangoDeTrimestre(gestion, trimestre) : null;
+  // Los avisos enviados con el modelo antiguo (antes de IA_MODELO_DESDE) no cuentan
+  const desde = iaService.prediccionesDesde();
+  const inicio = [rango?.inicio, desde].filter(Boolean).reduce((a, b) => (a > b ? a : b), undefined);
+  const enviadoEn = { ...(inicio ? { gte: inicio } : {}), ...(rango ? { lte: rango.fin } : {}) };
   const aviso = await prisma.notificacion.findFirst({
     where: {
       estudianteId,
       tipo: 'RIESGO_ALTO',
       estadoEnvio: 'ENVIADO',
-      ...(rango ? { enviadoEn: { gte: rango.inicio, lte: rango.fin } } : {}),
+      ...(Object.keys(enviadoEn).length ? { enviadoEn } : {}),
     },
     select: { id: true },
   });

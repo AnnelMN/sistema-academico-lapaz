@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
 
 const getReporteConsolidado = async (req, res) => {
   try {
@@ -41,6 +41,7 @@ const getReporteConsolidado = async (req, res) => {
       where: {
         estudianteId: { in: estudianteIds.length ? estudianteIds : [] },
         ...(trimestre ? { trimestre: parseInt(trimestre) } : {}),
+        ...filtroModeloVigente(),   // solo predicciones del modelo vigente
       },
       orderBy: { generadoEn: 'desc' },
     });

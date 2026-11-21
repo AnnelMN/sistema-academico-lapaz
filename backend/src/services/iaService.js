@@ -11,6 +11,24 @@ const iaHabilitada = () => process.env.IA_HABILITADA === 'true';
 
 exports.iaHabilitada = iaHabilitada;
 
+// Fecha desde la que se usan las predicciones (IA_MODELO_DESDE=AAAA-MM-DD): las
+// anteriores se hicieron con el modelo antiguo, que no era válido, y se ignoran
+// en las pantallas y en el control de avisos (no se borran de la base de datos).
+// Si la fecha no es válida no se muestra ninguna predicción (falla cerrada).
+const prediccionesDesde = () => {
+  const valor = (process.env.IA_MODELO_DESDE || '').trim();
+  if (!valor) return null;
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(valor) ? new Date(`${valor}T00:00:00.000Z`) : null;
+  return fecha && !Number.isNaN(fecha.getTime()) ? fecha : new Date(8.64e15);
+};
+exports.prediccionesDesde = prediccionesDesde;
+
+// Condición para Prisma: solo predicciones del modelo vigente
+exports.filtroModeloVigente = () => {
+  const desde = prediccionesDesde();
+  return desde ? { generadoEn: { gte: desde } } : {};
+};
+
 // Respuesta común cuando las predicciones están pausadas (no se envía ningún dato de riesgo)
 exports.PREDICCION_NO_DISPONIBLE = Object.freeze({
   disponible: false,

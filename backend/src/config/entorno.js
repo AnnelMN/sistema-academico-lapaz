@@ -48,6 +48,11 @@ function validarEntorno() {
     );
   }
 
+  // Fecha del modelo vigente: sin ella se mostrarían predicciones del modelo antiguo
+  if (process.env.IA_HABILITADA === 'true' && !/^\d{4}-\d{2}-\d{2}$/.test((process.env.IA_MODELO_DESDE || '').trim())) {
+    (esProduccion() ? errores : avisos).push('IA_MODELO_DESDE (AAAA-MM-DD) debe indicar desde cuándo valen las predicciones del modelo vigente');
+  }
+
   // Conexión cifrada con la base de datos (LB-08)
   for (const nombre of ['DATABASE_URL', 'DIRECT_URL']) {
     const url = process.env[nombre];

@@ -12,7 +12,7 @@ const simular = (modulo, exportaciones) => {
 // ── Dobles de prueba ─────────────────────────────────────────────────────
 const bd = { notificaciones: [], predicciones: [] };
 const correos = [];
-const ia = { habilitada: true, respuesta: { nivel_riesgo: 'RIESGO_ALTO', probabilidad: 0.9 }, demoraMs: 0, falla: false, llamadas: 0 };
+const ia = { desde: null, habilitada: true, respuesta: { nivel_riesgo: 'RIESGO_ALTO', probabilidad: 0.9 }, demoraMs: 0, falla: false, llamadas: 0 };
 
 simular('lib/prisma', {
   prediccionRiesgo: { create: async ({ data }) => { bd.predicciones.push(data); } },
@@ -27,6 +27,7 @@ simular('lib/prisma', {
 });
 simular('services/iaService', {
   iaHabilitada: () => ia.habilitada,
+  prediccionesDesde: () => ia.desde,
   predecirRiesgo: async () => {
     ia.llamadas += 1;
     if (ia.demoraMs) await new Promise((r) => setTimeout(r, ia.demoraMs));
@@ -49,7 +50,7 @@ const { evaluarRiesgo, evaluarRiesgoEnSegundoPlano } = require('../src/services/
 
 const reiniciar = () => {
   bd.notificaciones.length = 0; bd.predicciones.length = 0; correos.length = 0;
-  Object.assign(ia, { habilitada: true, demoraMs: 0, falla: false, llamadas: 0 });
+  Object.assign(ia, { desde: null, habilitada: true, demoraMs: 0, falla: false, llamadas: 0 });
 };
 const base = { materiaProgramadaId: 'mp-1', trimestre: 3 };
 
@@ -109,4 +110,20 @@ test('R-02: con la IA pausada no se hace nada', async () => {
   ia.habilitada = false;
   await evaluarRiesgoEnSegundoPlano(['e-1', 'e-2'], { ...base, origen: 'notas' });
   assert.equal(ia.llamadas, 0);
+});
+
+test('IA_MODELO_DESDE: un aviso del modelo ANTIGUO (antes de la fecha) no bloquea la alerta nueva', async () => {
+  reiniciar();
+  ia.desde = new Date('2026-11-21T00:00:00Z');
+  bd.notificaciones.push({ estudianteId: 'e-1', tipo: 'RIESGO_ALTO', estadoEnvio: 'ENVIADO', enviadoEn: new Date('2026-10-01T12:00:00Z') });
+  await evaluarRiesgo({ ...base, estudianteId: 'e-1' });
+  assert.equal(correos.length, 1, 'el aviso de octubre era del modelo antiguo');
+});
+
+test('IA_MODELO_DESDE: un aviso del modelo vigente sí cuenta', async () => {
+  reiniciar();
+  ia.desde = new Date('2026-09-15T00:00:00Z');
+  bd.notificaciones.push({ estudianteId: 'e-1', tipo: 'RIESGO_ALTO', estadoEnvio: 'ENVIADO', enviadoEn: new Date('2026-10-01T12:00:00Z') });
+  await evaluarRiesgo({ ...base, estudianteId: 'e-1' });
+  assert.equal(correos.length, 0);
 });

@@ -86,3 +86,19 @@ test('con la IA pausada no se llama al microservicio', async () => {
     if (anterior === undefined) delete process.env.IA_HABILITADA; else process.env.IA_HABILITADA = anterior;
   }
 });
+
+test('filtroModeloVigente: solo predicciones desde IA_MODELO_DESDE; fecha inválida → ninguna (falla cerrada)', () => {
+  const anterior = process.env.IA_MODELO_DESDE;
+  try {
+    delete require.cache[require.resolve('../src/services/iaService')];
+    const ia = require('../src/services/iaService');
+    delete process.env.IA_MODELO_DESDE;
+    assert.deepEqual(ia.filtroModeloVigente(), {});
+    process.env.IA_MODELO_DESDE = '2026-11-21';
+    assert.equal(ia.filtroModeloVigente().generadoEn.gte.toISOString(), '2026-11-21T00:00:00.000Z');
+    process.env.IA_MODELO_DESDE = 'mañana';
+    assert.ok(ia.filtroModeloVigente().generadoEn.gte > new Date('9999-01-01'), 'no deja pasar ninguna predicción');
+  } finally {
+    if (anterior === undefined) delete process.env.IA_MODELO_DESDE; else process.env.IA_MODELO_DESDE = anterior;
+  }
+});

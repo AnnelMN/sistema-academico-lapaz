@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
 const { periodoActivo, hoyLaPaz } = require('../services/periodoService');
 const { DIMENSIONES, cargarContexto, valorAsistencia, notaAnual } = require('../services/calificacionService');
 const QRCode = require('qrcode');
@@ -188,7 +188,7 @@ exports.getMiPrediccion = async (req, res) => {
     const estudiante = await getEstudiantePerfil(req.user.id);
 
     const prediccion = await prisma.prediccionRiesgo.findFirst({
-      where: { estudianteId: estudiante.id },
+      where: { estudianteId: estudiante.id, ...filtroModeloVigente() },   // solo del modelo vigente
       orderBy: { generadoEn: 'desc' }
     });
 
