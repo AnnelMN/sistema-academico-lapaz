@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { idsUltimasPredicciones } = require('../services/prediccionesService');
 
 const getReporteConsolidado = async (req, res) => {
   try {
@@ -37,11 +38,15 @@ const getReporteConsolidado = async (req, res) => {
 
     // Predicciones pausadas: no se consultan ni se envían datos de riesgo
     const prediccionesDisponibles = iaHabilitada();
+    // Solo la última predicción (del modelo vigente) de cada estudiante del reporte (R-05)
     const predicciones = !prediccionesDisponibles ? [] : await prisma.prediccionRiesgo.findMany({
       where: {
-        estudianteId: { in: estudianteIds.length ? estudianteIds : [] },
-        ...(trimestre ? { trimestre: parseInt(trimestre) } : {}),
-        ...filtroModeloVigente(),   // solo predicciones del modelo vigente
+        id: {
+          in: await idsUltimasPredicciones({
+            estudianteId: { in: estudianteIds.length ? estudianteIds : [] },
+            ...(trimestre ? { trimestre: parseInt(trimestre) } : {}),
+          }),
+        },
       },
       orderBy: { generadoEn: 'desc' },
     });

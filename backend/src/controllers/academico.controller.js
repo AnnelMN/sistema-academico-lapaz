@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
+const { idsUltimasPredicciones } = require('../services/prediccionesService');
 const { periodoActivo } = require('../services/periodoService');
 
 // MATERIAS
@@ -141,8 +142,8 @@ const getDirectorDashboard = async (req, res) => {
       }),
       prisma.asistencia.findMany({ select: { estado: true } }),
       // Predicciones pausadas: no se consultan ni se envían datos de riesgo
-      !prediccionesDisponibles ? Promise.resolve([]) : prisma.prediccionRiesgo.findMany({
-        where: filtroModeloVigente(),   // solo predicciones del modelo vigente
+      !prediccionesDisponibles ? Promise.resolve([]) : idsUltimasPredicciones().then((ids) => prisma.prediccionRiesgo.findMany({
+        where: { id: { in: ids } },   // solo la última del modelo vigente por estudiante (R-05)
         orderBy: { generadoEn: 'desc' },
         select: {
           estudianteId: true,
@@ -157,7 +158,7 @@ const getDirectorDashboard = async (req, res) => {
             },
           },
         },
-      }),
+      })),
     ]);
 
     const acumuladoPorEstudiante = new Map();

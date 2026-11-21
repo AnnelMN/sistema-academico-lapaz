@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
-const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
+const { iaHabilitada, PREDICCION_NO_DISPONIBLE } = require('../services/iaService');
 const { verificarAccesoProgramacion } = require('../lib/acceso');
+const { idsUltimasPredicciones } = require('../services/prediccionesService');
 const { periodoActivo, hoyLaPaz } = require('../services/periodoService');
 
 // GET /api/predicciones/estado — cualquier usuario autenticado puede saber si están disponibles
@@ -23,8 +24,9 @@ const getPrediccionesEstudiantes = async (req, res) => {
 
     const { cursoId, nivelRiesgo, trimestre } = req.query;
 
+    // Solo la última predicción (del modelo vigente) de cada estudiante (R-05)
     const predicciones = await prisma.prediccionRiesgo.findMany({
-      where: filtroModeloVigente(),   // solo predicciones del modelo vigente
+      where: { id: { in: await idsUltimasPredicciones() } },
       orderBy: { generadoEn: 'desc' },
       include: {
         estudiante: {
@@ -135,9 +137,7 @@ const getPrediccionesProfesor = async (req, res) => {
 
     // Última predicción del modelo vigente de cada estudiante
     const predicciones = estudiantes.length === 0 ? [] : await prisma.prediccionRiesgo.findMany({
-      where: { estudianteId: { in: estudiantes.map((e) => e.id) }, ...filtroModeloVigente() },
-      orderBy: { generadoEn: 'desc' },
-      distinct: ['estudianteId'],
+      where: { id: { in: await idsUltimasPredicciones({ estudianteId: { in: estudiantes.map((e) => e.id) } }) } },
       select: {
         estudianteId: true, nivelRiesgo: true, probabilidad: true, promedioNotas: true,
         porcentajeAsistencia: true, trimestre: true, generadoEn: true,
