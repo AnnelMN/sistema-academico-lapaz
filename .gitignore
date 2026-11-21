@@ -57,3 +57,6 @@ microservicio-ia/dataset_original/
 
 # Archivos temporales de Office (se crean al abrir un documento)
 ~$*
+
+# Documentos de la tesis (Word): se trabajan fuera del repositorio
+*.docx
