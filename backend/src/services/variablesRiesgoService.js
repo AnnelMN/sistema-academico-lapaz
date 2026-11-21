@@ -27,7 +27,7 @@ const limitar = (x, min, max) => Math.min(max, Math.max(min, x));
  * asistencias:     [{ estado }]
  * Devuelve null si todavía no hay ninguna nota (no se puede predecir).
  */
-function resumirVariables({ nivel, trimestre, notasPorMateria, asistencias }) {
+function resumirVariables({ nivel, trimestre, notasPorMateria, asistencias, gestion }) {
   const acumuladas = Object.values(notasPorMateria instanceof Map ? Object.fromEntries(notasPorMateria) : notasPorMateria)
     .filter((totales) => totales.length > 0)
     .map((totales) => totales.reduce((s, v) => s + v, 0) / totales.length);
@@ -49,6 +49,7 @@ function resumirVariables({ nivel, trimestre, notasPorMateria, asistencias }) {
     trimestre: limitar(Number(trimestre), 1, 3),
     materias_con_nota: acumuladas.length,     // informativo (no se envía al modelo)
     clases_registradas: total,                // informativo (no se envía al modelo)
+    gestion: gestion ?? null,                 // informativo (no se envía al modelo)
   };
 }
 
@@ -93,7 +94,7 @@ async function calcularVariablesRiesgo({ estudianteId, materiaProgramadaId, trim
     select: { estado: true },
   });
 
-  return resumirVariables({ nivel: estudiante.curso.nivel, trimestre, notasPorMateria, asistencias });
+  return resumirVariables({ nivel: estudiante.curso.nivel, trimestre, notasPorMateria, asistencias, gestion: origen.gestion });
 }
 
 module.exports = { resumirVariables, calcularVariablesRiesgo, NOTA_APROBACION };

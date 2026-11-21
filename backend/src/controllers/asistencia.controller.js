@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { evaluarRiesgo } = require('../services/riesgoService');
+const { evaluarRiesgoEnSegundoPlano } = require('../services/riesgoService');
 const emailService = require('../services/emailService');
 const {
   esIdValido,
@@ -151,7 +151,12 @@ async function procesarTrasRegistro(materiaProgramadaId, periodo, estudianteIds)
     console.error('Error recalculando notas tras la asistencia:', calcError.message);
   }
 
-  // --- INTEGRACION CON IA Y NOTIFICACIONES ---
+  // Predicción de riesgo con TODAS las materias de cada estudiante (mismo servicio que
+  // el registro de notas; pausada mientras IA_HABILITADA no sea "true"). Se hace en
+  // segundo plano: el docente no espera a la IA, ni en el registro manual ni en el QR (R-02).
+  evaluarRiesgoEnSegundoPlano(estudianteIds, { materiaProgramadaId, trimestre: periodo.trimestre, origen: 'asistencia' });
+
+  // --- AVISO POR EXCESO DE FALTAS ---
   const config = await prisma.configuracion.findFirst();
   const limiteFaltas = config?.limiteFaltas || 25;
 
@@ -170,15 +175,7 @@ async function procesarTrasRegistro(materiaProgramadaId, periodo, estudianteIds)
       });
       const faltas = contarAsistencia(asistencias).faltas;
 
-      // 3. Predicción de riesgo con TODAS las materias del estudiante (mismo servicio
-      //    que el registro de notas; pausado mientras IA_HABILITADA no sea "true")
-      try {
-        await evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre: periodo.trimestre, origen: 'asistencia' });
-      } catch (iaError) {
-        console.warn(`No se pudo evaluar el riesgo del estudiante ${estudianteId}:`, iaError.message);
-      }
-
-      // 4. Verificar exceso de faltas
+      // 3. Verificar exceso de faltas
       if (faltas > limiteFaltas && estudiante.emailTutor) {
         const yaNotificado = await prisma.notificacion.findFirst({
           where: {

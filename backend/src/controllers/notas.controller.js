@@ -5,7 +5,7 @@ const {
   PESOS, DIMENSIONES, MAX_AUTOEVALUACION, MAX_CASILLAS,
   cargarContexto, calcularDesdeContexto, recalcularNotas,
 } = require('../services/calificacionService');
-const { evaluarRiesgo } = require('../services/riesgoService');
+const { evaluarRiesgoEnSegundoPlano } = require('../services/riesgoService');
 const { accionDe, registrarCambios } = require('../services/auditoriaService');
 
 // ════════════════════════════════════════════════════════════════════
@@ -393,12 +393,10 @@ exports.guardarCalificaciones = async (req, res) => {
       await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
 
-    // Riesgo (pausado mientras IA_HABILITADA no sea "true"): usa todas las materias del estudiante
-    for (const estudianteId of afectados) {
-      if (!resultados.get(estudianteId)) continue;
-      await evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, origen: 'notas' })
-        .catch((e) => console.error('Error evaluando riesgo:', e.message));
-    }
+    // Riesgo (pausado mientras IA_HABILITADA no sea "true"): usa todas las materias
+    // del estudiante y se calcula en segundo plano, sin hacer esperar al docente (R-02)
+    evaluarRiesgoEnSegundoPlano([...afectados].filter((id) => resultados.get(id)),
+      { materiaProgramadaId, trimestre, origen: 'notas' });
 
     res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true }));
   } catch (error) {
