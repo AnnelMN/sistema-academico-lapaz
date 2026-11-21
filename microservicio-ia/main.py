@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import joblib
-import numpy as np
+import pandas as pd
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,6 +50,9 @@ if not os.path.isabs(MODEL_PATH):
 # Regla de negocio 4: exactamente estas tres categorías
 NIVELES_VALIDOS = {"SIN_RIESGO", "RIESGO_MEDIO", "RIESGO_ALTO"}
 
+# Variables con las que se entrenó el modelo (train_model.py), en este orden
+FEATURES = ["promedio_notas", "porcentaje_asistencia", "areas_reprobadas", "nivel", "trimestre"]
+
 _modelo = None
 
 
@@ -58,10 +61,18 @@ def _cargar_modelo():
         logger.warning("No se encontró el modelo en %s", MODEL_PATH)
         return None
     try:
-        return joblib.load(MODEL_PATH)
+        modelo = joblib.load(MODEL_PATH)
     except Exception:  # noqa: BLE001 - se registra y el servicio responde 503
         logger.exception("No se pudo cargar el modelo")
         return None
+    # El modelo debe esperar exactamente las variables de FEATURES y predecir solo
+    # las 3 categorías permitidas; si no (p. ej., un .pkl antiguo), no se usa.
+    esperadas = list(getattr(modelo, "feature_names_in_", []))
+    clases = set(map(str, getattr(modelo, "classes_", [])))
+    if esperadas != FEATURES or not clases <= NIVELES_VALIDOS:
+        logger.error("Modelo incompatible: variables %s, clases %s", esperadas, sorted(clases))
+        return None
+    return modelo
 
 
 @asynccontextmanager
@@ -95,10 +106,11 @@ class PredictionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    attendance_percentage: float = Field(ge=0, le=100)
-    total_score: float = Field(ge=0, le=100)
-    class_participation: float = Field(ge=0, le=10)
-    weekly_self_study_hours: float = Field(ge=0, le=168)
+    promedio_notas: float = Field(ge=0, le=100)          # promedio de las áreas hasta el momento
+    porcentaje_asistencia: float = Field(ge=0, le=100)   # (P + A + L) / días × 100, acumulado
+    areas_reprobadas: int = Field(ge=0, le=13)           # áreas con nota acumulada < 51
+    nivel: int = Field(ge=1, le=6)                       # 1.º a 6.º de secundaria
+    trimestre: int = Field(ge=1, le=3)                   # trimestre de la predicción
 
 
 @app.get("/health")
@@ -114,12 +126,7 @@ def predecir_riesgo(data: PredictionRequest):
         raise HTTPException(status_code=503, detail="Modelo no disponible")
 
     try:
-        entrada = np.array([[
-            data.attendance_percentage,
-            data.total_score,
-            data.class_participation,
-            data.weekly_self_study_hours,
-        ]])
+        entrada = pd.DataFrame([data.model_dump()])[FEATURES]
         nivel = str(_modelo.predict(entrada)[0])
         probabilidad = float(max(_modelo.predict_proba(entrada)[0]))
         if nivel not in NIVELES_VALIDOS:

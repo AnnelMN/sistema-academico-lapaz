@@ -60,20 +60,32 @@ Verifica el estado del servicio.
 ```
 
 ### `POST /predecir`
-Realiza una predicción del nivel de riesgo.
-**Cuerpo de la petición (JSON):**
+Realiza una predicción del nivel de riesgo. Requiere el encabezado `X-API-Key`.
+**Cuerpo de la petición (JSON)**: la información del estudiante hasta el momento de la predicción.
 ```json
 {
-  "attendance_percentage": 85.0,
-  "total_score": 60.5,
-  "class_participation": 5.0,
-  "weekly_self_study_hours": 10.0
+  "promedio_notas": 60.0,
+  "porcentaje_asistencia": 86.0,
+  "areas_reprobadas": 2,
+  "nivel": 4,
+  "trimestre": 2
 }
 ```
+| Campo | Rango | Significado |
+|---|---|---|
+| `promedio_notas` | 0–100 | Promedio de las áreas (nota acumulada del año hasta el momento) |
+| `porcentaje_asistencia` | 0–100 | (Presentes + Atrasos + Licencias) / días × 100, acumulado |
+| `areas_reprobadas` | 0–13 | Áreas con nota acumulada menor a 51 |
+| `nivel` | 1–6 | Curso de secundaria |
+| `trimestre` | 1–3 | Trimestre en que se hace la predicción |
+
 **Respuesta exitosa:**
 ```json
 {
-  "nivel_riesgo": "SIN_RIESGO",
-  "probabilidad": 0.92
+  "nivel_riesgo": "RIESGO_MEDIO",
+  "probabilidad": 0.52
 }
 ```
+
+### Entrenamiento
+`venv/Scripts/python.exe train_model.py` entrena un Árbol de Decisión (entropía) y un Random Forest con el dataset sintético (`dataset_sintetico/`, ver `docs/DATASET_SINTETICO.md`), compara su F1 macro con una partición 80/20 por estudiante y guarda el mejor en `model/modelo_riesgo.pkl`, con sus métricas en `model/metricas_modelo.json` y las reglas del árbol en `model/reglas_arbol_decision.txt`. Al iniciar, el servicio verifica que el modelo use exactamente estas 5 variables; si no, responde 503.

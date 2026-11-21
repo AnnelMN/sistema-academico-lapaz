@@ -1,0 +1,94 @@
+Reglas del Árbol de Decisión (entropía) entrenado con el dataset sintético.
+Cada rama es una condición; cada hoja ('class:') es el nivel de riesgo predicho.
+
+|--- areas_reprobadas <= 0.5
+|   |--- promedio_notas <= 74.8
+|   |   |--- trimestre <= 2.5
+|   |   |   |--- promedio_notas <= 69.4
+|   |   |   |   |--- promedio_notas <= 64.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- promedio_notas >  64.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |--- promedio_notas >  69.4
+|   |   |   |   |--- trimestre <= 1.5
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- trimestre >  1.5
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |--- trimestre >  2.5
+|   |   |   |--- promedio_notas <= 67.7
+|   |   |   |   |--- promedio_notas <= 63.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- promedio_notas >  63.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |--- promedio_notas >  67.7
+|   |   |   |   |--- promedio_notas <= 70.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- promedio_notas >  70.7
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |--- promedio_notas >  74.8
+|   |   |--- promedio_notas <= 82.9
+|   |   |   |--- trimestre <= 1.5
+|   |   |   |   |--- porcentaje_asistencia <= 97.0
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- porcentaje_asistencia >  97.0
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |--- trimestre >  1.5
+|   |   |   |   |--- promedio_notas <= 78.9
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- promedio_notas >  78.9
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |--- promedio_notas >  82.9
+|   |   |   |--- promedio_notas <= 85.2
+|   |   |   |   |--- trimestre <= 1.5
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |   |--- trimestre >  1.5
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |--- promedio_notas >  85.2
+|   |   |   |   |--- class: SIN_RIESGO
+|--- areas_reprobadas >  0.5
+|   |--- areas_reprobadas <= 2.5
+|   |   |--- promedio_notas <= 65.0
+|   |   |   |--- trimestre <= 2.5
+|   |   |   |   |--- promedio_notas <= 60.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |   |--- promedio_notas >  60.5
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |   |--- trimestre >  2.5
+|   |   |   |   |--- promedio_notas <= 61.4
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |   |   |--- promedio_notas >  61.4
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |--- promedio_notas >  65.0
+|   |   |   |--- trimestre <= 1.5
+|   |   |   |   |--- promedio_notas <= 70.0
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |   |   |--- promedio_notas >  70.0
+|   |   |   |   |   |--- class: SIN_RIESGO
+|   |   |   |--- trimestre >  1.5
+|   |   |   |   |--- trimestre <= 2.5
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |   |   |--- trimestre >  2.5
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |--- areas_reprobadas >  2.5
+|   |   |--- promedio_notas <= 55.4
+|   |   |   |--- promedio_notas <= 50.1
+|   |   |   |   |--- areas_reprobadas <= 6.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |   |--- areas_reprobadas >  6.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |--- promedio_notas >  50.1
+|   |   |   |   |--- trimestre <= 1.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |   |--- trimestre >  1.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |--- promedio_notas >  55.4
+|   |   |   |--- trimestre <= 1.5
+|   |   |   |   |--- promedio_notas <= 63.0
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |   |--- promedio_notas >  63.0
+|   |   |   |   |   |--- class: RIESGO_MEDIO
+|   |   |   |--- trimestre >  1.5
+|   |   |   |   |--- trimestre <= 2.5
+|   |   |   |   |   |--- class: RIESGO_ALTO
+|   |   |   |   |--- trimestre >  2.5
+|   |   |   |   |   |--- class: RIESGO_ALTO

@@ -1,34 +1,230 @@
 {
-  "modelo_seleccionado": "Random Forest",
-  "modelos": {
-    "random_forest": {
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1_score": 1.0
-    },
-    "arbol_decision": {
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1_score": 1.0
-    }
-  },
-  "variables_influyentes": {
-    "total_score": 0.874,
-    "weekly_self_study_hours": 0.1251,
-    "class_participation": 0.0004,
-    "attendance_percentage": 0.0004
+  "modelo_seleccionado": "random_forest",
+  "criterio_seleccion": "Mayor F1 macro en el 20 % de prueba (separado por estudiante)",
+  "fecha_entrenamiento": "2026-11-21T17:02:24+00:00",
+  "scikit_learn": "1.9.1",
+  "dataset": {
+    "archivo": "dataset_riesgo_sintetico.csv",
+    "sha256_16": "f7ea2281f9c9dbc4",
+    "filas": 24000,
+    "estudiantes": 8000,
+    "tipo": "sintético (ver docs/DATASET_SINTETICO.md)"
   },
   "features": [
-    "attendance_percentage",
-    "total_score",
-    "class_participation",
-    "weekly_self_study_hours"
+    "promedio_notas",
+    "porcentaje_asistencia",
+    "areas_reprobadas",
+    "nivel",
+    "trimestre"
   ],
-  "escala_boliviana": {
-    "sin_riesgo": "total_score >= 66",
-    "riesgo_medio": "51 <= total_score < 66",
-    "riesgo_alto": "total_score < 51"
-  }
+  "clases": [
+    "SIN_RIESGO",
+    "RIESGO_MEDIO",
+    "RIESGO_ALTO"
+  ],
+  "etiqueta": {
+    "SIN_RIESGO": "0 áreas reprobadas al cierre",
+    "RIESGO_MEDIO": "1 o 2 áreas",
+    "RIESGO_ALTO": "3 o más áreas"
+  },
+  "variables_influyentes": {
+    "areas_reprobadas": 0.5461,
+    "promedio_notas": 0.4034,
+    "trimestre": 0.0244,
+    "porcentaje_asistencia": 0.023,
+    "nivel": 0.0031
+  },
+  "modelos": {
+    "arbol_decision": {
+      "parametros": {
+        "max_depth": 5
+      },
+      "validacion_cruzada": [
+        {
+          "parametros": {
+            "max_depth": 3
+          },
+          "f1_macro_validacion": 0.8127,
+          "desv": 0.0055
+        },
+        {
+          "parametros": {
+            "max_depth": 4
+          },
+          "f1_macro_validacion": 0.8043,
+          "desv": 0.0079
+        },
+        {
+          "parametros": {
+            "max_depth": 5
+          },
+          "f1_macro_validacion": 0.8171,
+          "desv": 0.0068
+        },
+        {
+          "parametros": {
+            "max_depth": 6
+          },
+          "f1_macro_validacion": 0.8151,
+          "desv": 0.005
+        },
+        {
+          "parametros": {
+            "max_depth": 8
+          },
+          "f1_macro_validacion": 0.8113,
+          "desv": 0.0083
+        },
+        {
+          "parametros": {
+            "max_depth": 10
+          },
+          "f1_macro_validacion": 0.8063,
+          "desv": 0.004
+        }
+      ],
+      "accuracy": 0.8742,
+      "precision_macro": 0.8145,
+      "recall_macro": 0.8132,
+      "f1_macro": 0.8138,
+      "f1_por_trimestre": {
+        "1": 0.707,
+        "2": 0.8217,
+        "3": 0.9105
+      },
+      "matriz_confusion": {
+        "clases (filas = real, columnas = predicho)": [
+          "SIN_RIESGO",
+          "RIESGO_MEDIO",
+          "RIESGO_ALTO"
+        ],
+        "valores": [
+          [
+            2842,
+            163,
+            16
+          ],
+          [
+            167,
+            507,
+            124
+          ],
+          [
+            21,
+            113,
+            847
+          ]
+        ]
+      },
+      "por_clase": {
+        "SIN_RIESGO": {
+          "precision": 0.938,
+          "recall": 0.9407,
+          "f1-score": 0.9393,
+          "casos": 3021
+        },
+        "RIESGO_MEDIO": {
+          "precision": 0.6475,
+          "recall": 0.6353,
+          "f1-score": 0.6414,
+          "casos": 798
+        },
+        "RIESGO_ALTO": {
+          "precision": 0.8582,
+          "recall": 0.8634,
+          "f1-score": 0.8608,
+          "casos": 981
+        }
+      }
+    },
+    "random_forest": {
+      "parametros": {
+        "max_depth": 6
+      },
+      "validacion_cruzada": [
+        {
+          "parametros": {
+            "max_depth": 6
+          },
+          "f1_macro_validacion": 0.8179,
+          "desv": 0.0084
+        },
+        {
+          "parametros": {
+            "max_depth": 8
+          },
+          "f1_macro_validacion": 0.8162,
+          "desv": 0.0061
+        },
+        {
+          "parametros": {
+            "max_depth": 10
+          },
+          "f1_macro_validacion": 0.8162,
+          "desv": 0.0054
+        },
+        {
+          "parametros": {
+            "max_depth": 14
+          },
+          "f1_macro_validacion": 0.8158,
+          "desv": 0.0063
+        }
+      ],
+      "accuracy": 0.8767,
+      "precision_macro": 0.8238,
+      "recall_macro": 0.8167,
+      "f1_macro": 0.82,
+      "f1_por_trimestre": {
+        "1": 0.7043,
+        "2": 0.84,
+        "3": 0.9107
+      },
+      "matriz_confusion": {
+        "clases (filas = real, columnas = predicho)": [
+          "SIN_RIESGO",
+          "RIESGO_MEDIO",
+          "RIESGO_ALTO"
+        ],
+        "valores": [
+          [
+            2853,
+            154,
+            14
+          ],
+          [
+            175,
+            532,
+            91
+          ],
+          [
+            26,
+            132,
+            823
+          ]
+        ]
+      },
+      "por_clase": {
+        "SIN_RIESGO": {
+          "precision": 0.9342,
+          "recall": 0.9444,
+          "f1-score": 0.9393,
+          "casos": 3021
+        },
+        "RIESGO_MEDIO": {
+          "precision": 0.6504,
+          "recall": 0.6667,
+          "f1-score": 0.6584,
+          "casos": 798
+        },
+        "RIESGO_ALTO": {
+          "precision": 0.8869,
+          "recall": 0.8389,
+          "f1-score": 0.8622,
+          "casos": 981
+        }
+      }
+    }
+  },
+  "advertencia": "Métricas sobre datos sintéticos: miden la coherencia del pipeline, no el desempeño real. Reentrenar con datos reales del sistema cuando existan."
 }
