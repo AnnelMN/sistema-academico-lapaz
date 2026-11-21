@@ -215,6 +215,8 @@ model PrediccionRiesgo {
   trimestre            Int
   generadoEn           DateTime    @default(now())
 
+  // Última predicción por estudiante (prisma/sql/004_indice_predicciones.sql)
+  @@index([estudianteId, generadoEn])
   @@map("predicciones_riesgo")
 }
 
