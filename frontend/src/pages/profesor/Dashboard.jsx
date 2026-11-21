@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SidebarLayout from '../../components/layout/SidebarLayout';
 import { useAuth } from '../../context/AuthContext';
-import PrediccionNoDisponible from '../../components/PrediccionNoDisponible';
+import ResumenRiesgoProfesor from '../../components/ResumenRiesgoProfesor';
 import { getMisMaterias, getPeriodoActual, getPlanilla } from '../../services/notas.service';
 
 // Panel del profesor con datos reales: usa los mismos endpoints que la planilla
@@ -303,8 +303,8 @@ const ProfesorDashboard = () => {
           </>
         )}
 
-        {/* Las predicciones de riesgo están pausadas hasta contar con un modelo válido */}
-        <PrediccionNoDisponible compacto />
+        {/* Riesgo de mis estudiantes (o el aviso si la IA está pausada) */}
+        <ResumenRiesgoProfesor />
       </div>
     </SidebarLayout>
   );
