@@ -2,10 +2,11 @@ const { esProduccion } = require('../config/entorno');
 const { esClaveValida } = require('../lib/secretos');
 
 // La predicción automática está PAUSADA salvo que IA_HABILITADA=true.
-// Motivo: el modelo actual se entrenó con un dataset que no corresponde al colegio
-// y sus resultados no son confiables. Mientras esté pausada no se guardan
-// predicciones nuevas ni se envían correos de Riesgo Alto (los de exceso de
-// faltas sí se siguen enviando, porque no dependen de la IA).
+// El modelo actual se entrenó con el dataset SINTÉTICO (docs/DATASET_SINTETICO.md):
+// sus métricas no representan el desempeño real, así que activarla es una
+// decisión de la Dirección. Mientras esté pausada no se guardan predicciones ni
+// se envían correos de Riesgo Alto (los de exceso de faltas sí, porque no
+// dependen de la IA).
 const iaHabilitada = () => process.env.IA_HABILITADA === 'true';
 
 exports.iaHabilitada = iaHabilitada;
@@ -16,7 +17,12 @@ exports.PREDICCION_NO_DISPONIBLE = Object.freeze({
   mensaje: 'Predicción no disponible por ahora',
 });
 
-exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
+// Variables que espera el modelo (microservicio-ia/main.py), en este orden
+const VARIABLES_MODELO = ['promedio_notas', 'porcentaje_asistencia', 'areas_reprobadas', 'nivel', 'trimestre'];
+exports.VARIABLES_MODELO = VARIABLES_MODELO;
+
+// variables: resultado de calcularVariablesRiesgo (variablesRiesgoService.js)
+exports.predecirRiesgo = async (variables) => {
   if (!iaHabilitada()) {
     return null;
   }
@@ -25,12 +31,11 @@ exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
   const iaServiceUrl = process.env.IA_SERVICE_URL || (esProduccion() ? null : 'http://localhost:8000');
   if (!iaServiceUrl) throw new Error('IA_SERVICE_URL no está configurada');
   
-  const payload = {
-    attendance_percentage: attendancePercentage,
-    total_score: totalScore,
-    class_participation: 5.0, // Valor por defecto solicitado
-    weekly_self_study_hours: 10.0 // Valor por defecto solicitado
-  };
+  // Solo se envían las 5 variables del modelo (el microservicio rechaza campos extra)
+  const payload = Object.fromEntries(VARIABLES_MODELO.map((k) => [k, variables?.[k]]));
+  if (VARIABLES_MODELO.some((k) => typeof payload[k] !== 'number' || !Number.isFinite(payload[k]))) {
+    throw new Error('Variables de riesgo incompletas');
+  }
 
   // Clave compartida con el microservicio (solo el backend puede pedir predicciones)
   const iaApiKey = process.env.IA_API_KEY;
@@ -61,7 +66,7 @@ exports.predecirRiesgo = async ({ totalScore, attendancePercentage }) => {
     const data = await response.json();
     return data; // { nivel_riesgo: "...", probabilidad: 0.XX }
   } catch (error) {
-    console.error('Error al comunicarse con el microservicio IA:', error);
+    console.error('Error al comunicarse con el microservicio IA:', error.message);
     throw error;
   }
 };

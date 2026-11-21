@@ -1,21 +1,28 @@
 const prisma = require('../lib/prisma');
 const iaService = require('./iaService');
+const { calcularVariablesRiesgo } = require('./variablesRiesgoService');
 const emailService = require('./emailService');
 
-// Evalúa el riesgo de un estudiante tras un cambio de notas.
-// Mientras IA_HABILITADA no sea "true", predecirRiesgo devuelve null y aquí no
-// se guarda nada ni se envían correos.
-async function evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, total, porcentajeAsistencia }) {
+// Evalúa el riesgo de un estudiante tras un cambio de notas o de asistencia.
+// Las variables se calculan con TODAS sus materias (no solo la que cambió).
+// Mientras IA_HABILITADA no sea "true" no se consulta la base de datos ni la IA,
+// no se guarda nada y no se envían correos.
+// origen: 'notas' | 'asistencia' (solo para el texto de la notificación)
+async function evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, origen = 'notas' }) {
+  if (!iaService.iaHabilitada()) return null;
+
+  const variables = await calcularVariablesRiesgo({ estudianteId, materiaProgramadaId, trimestre });
+  if (!variables) return null;   // todavía no tiene notas: no hay con qué predecir
+
   let prediccion = null;
   try {
-    prediccion = await iaService.predecirRiesgo({
-      totalScore: total,
-      attendancePercentage: porcentajeAsistencia ?? 100,
-    });
+    prediccion = await iaService.predecirRiesgo(variables);
   } catch (error) {
     console.warn('IA no disponible, se omite la predicción:', error.message);
   }
   if (!prediccion) return null;
+  const total = variables.promedio_notas;
+  const porcentajeAsistencia = variables.porcentaje_asistencia;
 
   await prisma.prediccionRiesgo.create({
     data: {
@@ -23,7 +30,7 @@ async function evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, tot
       nivelRiesgo: prediccion.nivel_riesgo,
       probabilidad: prediccion.probabilidad,
       promedioNotas: total,
-      porcentajeAsistencia: porcentajeAsistencia ?? 100,
+      porcentajeAsistencia,
       trimestre,
     },
   });
@@ -50,7 +57,7 @@ async function evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, tot
         tipo: 'RIESGO_ALTO',
         emailDestino: estudiante.emailTutor,
         estadoEnvio: 'ENVIADO',
-        mensaje: `Alerta enviada por Riesgo Alto (${(prediccion.probabilidad * 100).toFixed(1)}%) en la materia ${materia}`,
+        mensaje: `Alerta enviada por Riesgo Alto (${(prediccion.probabilidad * 100).toFixed(1)}%) tras registrar ${origen === 'asistencia' ? 'asistencia' : 'notas'} en ${materia} · promedio ${total} · áreas reprobadas ${variables.areas_reprobadas}`,
       },
     });
   } catch (error) {

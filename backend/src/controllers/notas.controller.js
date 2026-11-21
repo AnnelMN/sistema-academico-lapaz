@@ -393,13 +393,11 @@ exports.guardarCalificaciones = async (req, res) => {
       await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
 
-    // Riesgo (pausado mientras IA_HABILITADA no sea "true")
+    // Riesgo (pausado mientras IA_HABILITADA no sea "true"): usa todas las materias del estudiante
     for (const estudianteId of afectados) {
-      const r = resultados.get(estudianteId);
-      if (!r) continue;
-      await evaluarRiesgo({
-        estudianteId, materiaProgramadaId, trimestre, total: r.total, porcentajeAsistencia: r.asistencia,
-      }).catch((e) => console.error('Error evaluando riesgo:', e.message));
+      if (!resultados.get(estudianteId)) continue;
+      await evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre, origen: 'notas' })
+        .catch((e) => console.error('Error evaluando riesgo:', e.message));
     }
 
     res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true }));

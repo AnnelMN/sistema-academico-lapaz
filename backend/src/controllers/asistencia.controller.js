@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const iaService = require('../services/iaService');
+const { evaluarRiesgo } = require('../services/riesgoService');
 const emailService = require('../services/emailService');
 const {
   esIdValido,
@@ -164,88 +164,21 @@ async function procesarTrasRegistro(materiaProgramadaId, periodo, estudianteIds)
       });
       if (!estudiante) continue;
 
-      // 2. Calcular porcentaje de asistencia en esta materia
+      // 2. Faltas del estudiante en esta materia (para el aviso de exceso de faltas)
       const asistencias = await prisma.asistencia.findMany({
         where: { estudianteId, materiaProgramadaId }
       });
-      const statsAsistencia = contarAsistencia(asistencias);
-      const faltas = statsAsistencia.faltas;
-      const porcentajeAsistencia = statsAsistencia.porcentaje ?? 100;
+      const faltas = contarAsistencia(asistencias).faltas;
 
-      // 3. Obtener promedio de notas del trimestre (según la fecha registrada)
-      const trimestreActivo = periodo.trimestre;
-      const notas = await prisma.nota.findMany({
-        where: { estudianteId, trimestre: trimestreActivo }
-      });
-      let promedioNotas = 0;
-      if (notas.length > 0) {
-        promedioNotas = notas.reduce((sum, n) => sum + n.total, 0) / notas.length;
-      }
-
-      // 4. Llamar al microservicio IA
-      let prediccionData;
+      // 3. Predicción de riesgo con TODAS las materias del estudiante (mismo servicio
+      //    que el registro de notas; pausado mientras IA_HABILITADA no sea "true")
       try {
-        prediccionData = await iaService.predecirRiesgo({
-          totalScore: promedioNotas,
-          attendancePercentage: porcentajeAsistencia
-        });
+        await evaluarRiesgo({ estudianteId, materiaProgramadaId, trimestre: periodo.trimestre, origen: 'asistencia' });
       } catch (iaError) {
-        console.warn(`IA no disponible para estudiante ${estudianteId}:`, iaError.message);
+        console.warn(`No se pudo evaluar el riesgo del estudiante ${estudianteId}:`, iaError.message);
       }
 
-      // 5. Guardar prediccion si existe
-      if (prediccionData) {
-        await prisma.prediccionRiesgo.create({
-          data: {
-            estudianteId,
-            nivelRiesgo: prediccionData.nivel_riesgo,
-            probabilidad: prediccionData.probabilidad,
-            promedioNotas,
-            porcentajeAsistencia,
-            trimestre: trimestreActivo
-          }
-        });
-
-        // 6. Si es RIESGO_ALTO, enviar correo al tutor
-        if (prediccionData.nivel_riesgo === 'RIESGO_ALTO' && estudiante.emailTutor) {
-          try {
-            const programacion = await prisma.materiaProgramada.findUnique({
-              where: { id: materiaProgramadaId },
-              include: { materia: true }
-            });
-            const materiaNombre = programacion?.materia?.nombre || 'General';
-
-            await emailService.enviarAlertaRiesgo(
-              estudiante.usuario.nombre,
-              materiaNombre,
-              prediccionData,
-              estudiante.emailTutor
-            );
-            await prisma.notificacion.create({
-              data: {
-                estudianteId,
-                tipo: 'RIESGO_ALTO',
-                emailDestino: estudiante.emailTutor,
-                estadoEnvio: 'ENVIADO',
-                mensaje: `Alerta por Riesgo Alto (${(prediccionData.probabilidad * 100).toFixed(1)}%) en asistencia`
-              }
-            });
-          } catch (emailError) {
-            console.error('Error enviando correo RIESGO_ALTO:', emailError.message);
-            await prisma.notificacion.create({
-              data: {
-                estudianteId,
-                tipo: 'RIESGO_ALTO',
-                emailDestino: estudiante.emailTutor || 'desconocido',
-                estadoEnvio: 'FALLIDO',
-                mensaje: 'No se pudo enviar el correo de alerta' // el detalle técnico queda solo en el log del servidor
-              }
-            }).catch(() => {});
-          }
-        }
-      }
-
-      // 7. Verificar exceso de faltas
+      // 4. Verificar exceso de faltas
       if (faltas > limiteFaltas && estudiante.emailTutor) {
         const yaNotificado = await prisma.notificacion.findFirst({
           where: {
