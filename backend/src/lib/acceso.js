@@ -16,7 +16,7 @@ async function verificarAccesoProgramacion(user, materiaProgramadaId) {
 
   const programacion = await prisma.materiaProgramada.findUnique({
     where: { id: materiaProgramadaId },
-    select: { id: true, docenteId: true, cursoId: true },
+    select: { id: true, docenteId: true, cursoId: true, gestion: true },
   });
 
   if (!programacion) {

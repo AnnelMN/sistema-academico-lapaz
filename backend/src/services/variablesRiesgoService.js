@@ -73,7 +73,8 @@ async function calcularVariablesRiesgo({ estudianteId, materiaProgramadaId, trim
   if (ids.length === 0) return null;
 
   const notas = await cliente.nota.findMany({
-    where: { estudianteId, materiaProgramadaId: { in: ids }, trimestre: { lte: trimestre } },
+    // Solo trimestres completos: una "Calificación pendiente" no es un promedio real
+    where: { estudianteId, materiaProgramadaId: { in: ids }, trimestre: { lte: trimestre }, total: { not: null } },
     select: { materiaProgramadaId: true, trimestre: true, total: true },
     orderBy: { trimestre: 'asc' },
   });

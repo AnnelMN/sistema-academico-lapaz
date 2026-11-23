@@ -77,7 +77,11 @@ export default function DirectorHorarios() {
               </tr>
             ) : (
               programaciones.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr
+                  key={p.id}
+                  className="hover:bg-slate-50/50 transition-colors"
+                  style={p.docente?.usuario?.activo === false ? { opacity: 0.55 } : undefined}
+                >
                   <td className="px-4 py-3 text-[12px] font-semibold" style={{ color: 'var(--ios-label)' }}>
                     {p.curso?.nivel}° {p.curso?.paralelo}
                   </td>
@@ -86,6 +90,11 @@ export default function DirectorHorarios() {
                   </td>
                   <td className="px-4 py-3 text-[12px]" style={{ color: 'var(--ios-label)' }}>
                     {p.docente?.usuario?.nombre || 'Sin docente'}
+                    {p.docente?.usuario?.activo === false && (
+                      <span className="ios-badge ios-badge-neutral ml-2" title="Docente desactivado: el horario se conserva como historial y no ocupa el espacio del curso">
+                        Docente inactivo
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-[12px]" style={{ color: 'var(--ios-label)' }}>
                     {p.horario}

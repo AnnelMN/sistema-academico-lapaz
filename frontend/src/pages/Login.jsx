@@ -5,13 +5,6 @@ import authService from '../services/auth.service';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
-const roles = [
-  { id: 'DIRECTOR', label: 'Director' },
-  { id: 'PROFESOR', label: 'Docente' },
-  { id: 'ADMINISTRATIVO', label: 'Administrativo' },
-  { id: 'ESTUDIANTE', label: 'Estudiante' },
-];
-
 const dashboardRoutes = {
   DIRECTOR: '/director',
   PROFESOR: '/profesor',
@@ -20,7 +13,6 @@ const dashboardRoutes = {
 };
 
 const Login = () => {
-  const [selectedRole, setSelectedRole] = useState('DIRECTOR');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -453,33 +445,6 @@ const Login = () => {
             </form>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label
-                  className="block text-[11px] font-semibold mb-2.5 uppercase tracking-wider"
-                  style={{ color: 'var(--ios-secondary)' }}
-                >
-                  Tu rol
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {roles.map((role) => {
-                    const isActive = selectedRole === role.id;
-                    return (
-                      <button
-                        key={role.id}
-                        type="button"
-                        onClick={() => setSelectedRole(role.id)}
-                        className="px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all"
-                        style={isActive
-                          ? { backgroundColor: 'var(--ios-blue)', color: '#fff', boxShadow: 'var(--ios-shadow-blue)' }
-                          : { backgroundColor: 'var(--ios-bg)', color: 'var(--ios-secondary)' }}
-                      >
-                        {role.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div>
                 <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--ios-secondary)' }}>
                   Email institucional

@@ -67,6 +67,8 @@ function resumirPlanilla(materia, planilla) {
     filas,
     estudiantes: filas.length,
     conNota: conNota.length,
+    // Notas iniciadas pero incompletas («Calificación pendiente»): no se promedian
+    pendientes: planilla.estudiantes.filter((e) => e.tieneNota && e.total === null).length,
     promedio: promedioEntero(conNota.map((f) => f.total)),
     aprobados: conNota.filter((f) => f.aprobado).length,
     reprobados: conNota.filter((f) => !f.aprobado).length,
@@ -236,7 +238,12 @@ const ProfesorDashboard = () => {
                       <td style={{ color: 'var(--ios-secondary)' }}>{r.horario || '—'}</td>
                       <td className="text-center">{r.estudiantes}</td>
                       <td className="text-center font-semibold">
-                        {r.promedio ?? <span style={{ color: 'var(--ios-tertiary)' }}>Sin notas</span>}
+                        {r.promedio ?? <span style={{ color: 'var(--ios-tertiary)' }}>{r.pendientes ? 'Pendiente' : 'Sin notas'}</span>}
+                        {r.pendientes > 0 && (
+                          <span className="block text-[10px] font-normal" style={{ color: 'var(--ios-tertiary)' }}>
+                            {r.pendientes} pendiente{r.pendientes === 1 ? '' : 's'}
+                          </span>
+                        )}
                       </td>
                       <td className="text-center">
                         {r.conNota ? (

@@ -86,6 +86,11 @@ export default function DirectorAsistencia() {
     }
   };
 
+  const programacionSel = materias.find((m) => m.id === materiaId);
+  const materiaHistorial = programacionSel
+    ? `${programacionSel.materia?.nombre ?? ''} — ${programacionSel.curso?.nivel}° ${programacionSel.curso?.paralelo}`
+    : '';
+
   const cerrarHistorial = () => {
     setHistorialOpen(false);
     setHistorialEstudiante(null);
@@ -257,13 +262,13 @@ export default function DirectorAsistencia() {
         className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={cerrarHistorial}
       />
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-5 flex flex-col">
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-5 flex flex-col">
         <div className="flex justify-between items-start mb-4">
           <div>
             <h3 className="text-[16px] font-bold" style={{ color: 'var(--ios-label)' }}>
               Historial — {historialEstudiante?.nombre}
             </h3>
-            <p className="text-[11px] text-slate-500">{historialEstudiante?.materia?.nombre}</p>
+            <p className="text-[11px] text-slate-500">{materiaHistorial}</p>
           </div>
           <button
             onClick={cerrarHistorial}

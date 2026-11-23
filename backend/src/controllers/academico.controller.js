@@ -127,8 +127,9 @@ const getDirectorDashboard = async (req, res) => {
       prisma.curso.findMany({
         orderBy: [{ nivel: 'asc' }, { paralelo: 'asc' }],
       }),
+      // Solo notas completas: una "Calificación pendiente" no se promedia ni aprueba
       prisma.nota.findMany({
-        where: { materiaProgramada: { gestion } },
+        where: { materiaProgramada: { gestion }, total: { not: null } },
         select: {
           estudianteId: true,
           total: true,

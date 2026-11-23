@@ -34,11 +34,11 @@ const SidebarLayout = ({
   });
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans p-3 sm:p-4 gap-4" style={{ backgroundColor: 'var(--ios-bg)' }}>
+    <div className="flex h-screen overflow-hidden font-sans p-3 sm:p-4 gap-4 print:block print:h-auto print:overflow-visible print:p-0" style={{ backgroundColor: 'var(--ios-bg)' }}>
       
       {/* ── Sidebar Soft UI Elevado ─────────────────────────── */}
       <aside
-        className="w-[230px] flex flex-col flex-shrink-0 rounded-3xl transition-all"
+        className="w-[230px] flex flex-col flex-shrink-0 rounded-3xl transition-all print:hidden"
         style={{
           backgroundColor: 'var(--ios-surface)',
           boxShadow: 'var(--soft-shadow-flat)',
@@ -159,11 +159,11 @@ const SidebarLayout = ({
       </aside>
 
       {/* ── Área de contenido principal Soft UI ────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden rounded-3xl" style={{ backgroundColor: 'var(--ios-surface)', boxShadow: 'var(--soft-shadow-flat)', border: '1px solid rgba(255, 255, 255, 0.7)' }}>
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden rounded-3xl print:block print:overflow-visible print:rounded-none" style={{ backgroundColor: 'var(--ios-surface)', boxShadow: 'var(--soft-shadow-flat)', border: '1px solid rgba(255, 255, 255, 0.7)' }}>
 
         {/* Header superior estilo Cápsula Soft UI */}
         <header
-          className="px-6 py-4 flex justify-between items-center flex-shrink-0 border-b hidden md:flex"
+          className="px-6 py-4 flex justify-between items-center flex-shrink-0 border-b hidden md:flex print:hidden"
           style={{
             backgroundColor: 'var(--ios-surface)',
             borderColor: 'var(--ios-separator-2)',
@@ -202,9 +202,9 @@ const SidebarLayout = ({
         </header>
 
         {/* Área scrollable principal */}
-        <div className="flex-1 overflow-auto p-6" style={{ backgroundColor: 'var(--ios-bg)' }}>
+        <div className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0" style={{ backgroundColor: 'var(--ios-bg)' }}>
           {/* Mobile header */}
-          <div className="md:hidden mb-5 flex justify-between items-start">
+          <div className="md:hidden mb-5 flex justify-between items-start print:hidden">
             <div>
               <h1 className="text-[18px] font-extrabold" style={{ color: 'var(--ios-label)' }}>{headerTitle}</h1>
               <p className="text-[12px] font-medium" style={{ color: 'var(--ios-secondary)' }}>{headerSubtitle}</p>

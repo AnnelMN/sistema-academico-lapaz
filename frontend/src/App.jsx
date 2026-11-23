@@ -9,6 +9,8 @@ import ProfesorDashboard from './pages/profesor/Dashboard';
 import RegistroNotas from './pages/profesor/RegistroNotas';
 import RegistroAsistencia from './pages/profesor/RegistroAsistencia';
 import PrediccionIA from './pages/profesor/PrediccionIA';
+import MiHorario from './pages/profesor/MiHorario';
+import ReportesProfesor from './pages/profesor/ReportesProfesor';
 import AdminLayout from './pages/administrativo/AdminLayout';
 import AdminDashboard from './pages/administrativo/Dashboard';
 import Cursos from './pages/administrativo/Cursos';
@@ -70,6 +72,8 @@ function App() {
         <Route path="/profesor/notas" element={<RegistroNotas />} />
         <Route path="/profesor/asistencia" element={<RegistroAsistencia />} />
         <Route path="/profesor/predicciones" element={<PrediccionIA />} />
+        <Route path="/profesor/horario" element={<MiHorario />} />
+        <Route path="/profesor/reportes" element={<ReportesProfesor />} />
       </Route>
 
       <Route element={<PrivateRoute allowedRoles={['ADMINISTRATIVO']} />}>

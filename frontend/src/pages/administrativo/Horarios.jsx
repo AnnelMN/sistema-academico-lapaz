@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Filter, Download } from 'lucide-react';
 import { getMaterias, getCursos, getDocentes, getProgramaciones, createProgramacion } from '../../services/academico.service';
+import { leerHorario } from '../../utils/horario';
 
 const Horarios = () => {
   const [materias, setMaterias] = useState([]);
@@ -18,6 +19,7 @@ const Horarios = () => {
 
   const [loading, setLoading] = useState(true);
   const [cursoHorario, setCursoHorario] = useState('');
+  const [mensaje, setMensaje] = useState(null); // { tipo: 'error' | 'ok', texto }
 
   const horas = ['07:30', '08:30', '09:30', '10:30', '11:30'];
   const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
@@ -64,6 +66,7 @@ const Horarios = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const horarioStr = `${formData.dia}-${formData.hora}`;
+    setMensaje(null);
     try {
       await createProgramacion({
         cursoId: formData.cursoId,
@@ -73,8 +76,11 @@ const Horarios = () => {
       });
       const progs = await getProgramaciones();
       setProgramaciones(progs);
+      setMensaje({ tipo: 'ok', texto: 'Horario guardado' });
     } catch (err) {
       console.error('Error al guardar asignación:', err);
+      // Muestra el conflicto (docente o curso ocupado) o el error de validación
+      setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'No se pudo guardar el horario' });
     }
   };
 
@@ -88,9 +94,13 @@ const Horarios = () => {
   });
 
   programacionesCurso.forEach(p => {
-    const [diaStr, horaStr] = p.horario.split('-');
+    const { dia: diaStr, hora: horaStr } = leerHorario(p.horario);
     if (grid[horaStr] && grid[horaStr][diaStr] !== undefined) {
-      grid[horaStr][diaStr] = p;
+      // Si el espacio tiene una clase de un docente inactivo y otra activa, se muestra la activa
+      const actual = grid[horaStr][diaStr];
+      if (!actual || (actual.docente?.usuario?.activo === false && p.docente?.usuario?.activo !== false)) {
+        grid[horaStr][diaStr] = p;
+      }
     }
   });
 
@@ -179,6 +189,11 @@ const Horarios = () => {
             <button type="submit" className="w-full mt-2 bg-[#4a90e2] hover:bg-blue-600 text-white text-[11px] font-bold py-2.5 rounded-md transition-colors">
               Guardar horario
             </button>
+            {mensaje && (
+              <div role="status" className={`mt-2 text-[11px] ${mensaje.tipo === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                {mensaje.texto}
+              </div>
+            )}
           </form>
         </div>
 
@@ -214,11 +229,18 @@ const Horarios = () => {
                         const cell = grid[h][d];
                         return (
                           <td key={idx} className="p-1">
-                            <div className={`rounded-md p-2 min-h-[50px] flex flex-col justify-center transition-all ${cell ? 'bg-[#dbeafe] border border-[#bfdbfe]' : 'bg-slate-50 border border-slate-100 border-dashed'}`}>
+                            <div
+                              className={`rounded-md p-2 min-h-[50px] flex flex-col justify-center transition-all ${cell ? 'bg-[#dbeafe] border border-[#bfdbfe]' : 'bg-slate-50 border border-slate-100 border-dashed'}`}
+                              style={cell?.docente?.usuario?.activo === false ? { opacity: 0.5 } : undefined}
+                              title={cell?.docente?.usuario?.activo === false ? 'Docente inactivo: este espacio se puede asignar a otro docente' : undefined}
+                            >
                               {cell ? (
                                 <>
                                   <div className="text-[10px] font-bold text-[#1e40af] leading-tight">{cell.materia.nombre}</div>
-                                  <div className="text-[9px] text-[#3b82f6] font-medium mt-1">{cell.docente.usuario?.nombre?.split(' ')[0]}</div>
+                                  <div className="text-[9px] text-[#3b82f6] font-medium mt-1">
+                                    {cell.docente.usuario?.nombre?.split(' ')[0]}
+                                    {cell.docente.usuario?.activo === false && ' (inactivo)'}
+                                  </div>
                                 </>
                               ) : (
                                 <span className="text-[9px] text-slate-300 font-bold tracking-widest">—</span>

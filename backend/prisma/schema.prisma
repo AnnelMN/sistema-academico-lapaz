@@ -171,12 +171,14 @@ model Nota {
   materiaProgramadaId String
   materiaProgramada   MateriaProgramada @relation(fields: [materiaProgramadaId], references: [id])
   trimestre           Int
-  ser                 Int
-  saber               Int
-  hacer               Int
+  // NULL = pendiente: al estudiante le falta alguna casilla del componente (006, 2026-11-23)
+  ser                 Int?
+  saber               Int?
+  hacer               Int?
   autoevaluacion      Int?
-  total               Int
-  aprobado            Boolean
+  // NULL = "Calificación pendiente": falta algún componente o la autoevaluación
+  total               Int?
+  aprobado            Boolean?
   creadoEn            DateTime          @default(now())
   actualizadoEn       DateTime          @updatedAt
 

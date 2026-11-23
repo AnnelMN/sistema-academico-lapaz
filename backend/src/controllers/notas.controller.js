@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 const { verificarAccesoProgramacion, verificarEstudiantesEnCurso, esIdValido } = require('../lib/acceso');
 const { periodoActivo } = require('../services/periodoService');
 const {
-  PESOS, DIMENSIONES, MAX_AUTOEVALUACION, MAX_CASILLAS,
+  PESOS, MAX_CASILLA, DIMENSIONES, MAX_AUTOEVALUACION, MAX_CASILLAS,
   cargarContexto, calcularDesdeContexto, recalcularNotas, valorAsistencia,
 } = require('../services/calificacionService');
 const { evaluarRiesgoEnSegundoPlano } = require('../services/riesgoService');
@@ -42,14 +42,15 @@ const esEnteroEnRango = (v, min, max) => Number.isInteger(v) && v >= min && v <=
 
 // Verifica acceso a la programación y, para escribir, que estemos en su trimestre activo
 async function prepararAcceso(user, materiaProgramadaId, { paraEscribir }) {
-  const acceso = await verificarAccesoProgramacion(user, materiaProgramadaId);
+  // En paralelo: cada consulta a la BD remota tarda ~0,4 s
+  const [acceso, activo] = await Promise.all([
+    verificarAccesoProgramacion(user, materiaProgramadaId),
+    periodoActivo(),
+  ]);
   if (acceso.error) throw new ErrorValidacion(acceso.status, acceso.error);
 
-  const programacion = await prisma.materiaProgramada.findUnique({
-    where: { id: materiaProgramadaId },
-    select: { id: true, cursoId: true, gestion: true },
-  });
-  const activo = await periodoActivo();
+  const { id, cursoId, gestion } = acceso.programacion;
+  const programacion = { id, cursoId, gestion };
   const trimestreActivo = activo && activo.gestion === programacion.gestion ? activo.trimestre : null;
 
   if (paraEscribir && !trimestreActivo) {
@@ -70,11 +71,12 @@ const filaHistorica = (ctx, e) => {
     valores: Object.fromEntries(ctx.valoresPorEstudiante.get(e.id) || []),
     asistencia: { ...asistencia, valor: valorAsistencia(asistencia) },
     autoevaluacion: nota?.autoevaluacion ?? null,
-    ser: nota?.ser ?? 0,
-    saber: nota?.saber ?? 0,
-    hacer: nota?.hacer ?? 0,
-    total: nota?.total ?? 0,
-    aprobado: nota?.aprobado ?? false,
+    // null = pendiente (o sin nota): nunca se inventa un 0
+    ser: nota?.ser ?? null,
+    saber: nota?.saber ?? null,
+    hacer: nota?.hacer ?? null,
+    total: nota?.total ?? null,
+    aprobado: nota?.aprobado ?? null,
     tieneNota: Boolean(nota),
   };
 };
@@ -82,8 +84,8 @@ const filaHistorica = (ctx, e) => {
 // Arma la respuesta de la planilla (casillas + estudiantes con sus cálculos).
 // El docente solo ve a los estudiantes ACTIVOS; el Director (incluirInactivos)
 // ve también a los desactivados, marcados con activo: false.
-async function construirPlanilla(materiaProgramadaId, trimestre, { editable, motivoNoEditable, incluirInactivos = false }) {
-  const ctx = await cargarContexto(materiaProgramadaId, trimestre);
+async function construirPlanilla(materiaProgramadaId, trimestre, { editable, motivoNoEditable, incluirInactivos = false, programacion = null }) {
+  const ctx = await cargarContexto(materiaProgramadaId, trimestre, undefined, programacion);
   return {
     materiaProgramadaId,
     gestion: ctx.programacion.gestion,
@@ -118,6 +120,7 @@ async function construirPlanilla(materiaProgramadaId, trimestre, { editable, mot
         hacer: calculo.hacer,
         total: calculo.total,
         aprobado: calculo.aprobado,
+        pendientes: calculo.pendientes,
         tieneNota: ctx.notasPorEstudiante.has(e.id),
       };
     }),
@@ -166,7 +169,7 @@ exports.getPeriodoActual = async (req, res) => {
 exports.getPlanilla = async (req, res) => {
   try {
     const { materiaProgramadaId } = req.query;
-    const { trimestreActivo } = await prepararAcceso(req.user, materiaProgramadaId, { paraEscribir: false });
+    const { programacion, trimestreActivo } = await prepararAcceso(req.user, materiaProgramadaId, { paraEscribir: false });
 
     let trimestre = trimestreActivo || 1;
     if (req.query.trimestre !== undefined) {
@@ -183,6 +186,7 @@ exports.getPlanilla = async (req, res) => {
       editable: !motivoNoEditable,
       motivoNoEditable,
       incluirInactivos: req.user.rol === 'DIRECTOR',
+      programacion,
     });
     res.json(planilla);
   } catch (error) {
@@ -199,7 +203,7 @@ exports.getPlanilla = async (req, res) => {
 exports.guardarCasillas = async (req, res) => {
   try {
     const { materiaProgramadaId, casillas, confirmarEliminacion } = req.body || {};
-    const { trimestreActivo: trimestre } = await prepararAcceso(req.user, materiaProgramadaId, { paraEscribir: true });
+    const { programacion, trimestreActivo: trimestre } = await prepararAcceso(req.user, materiaProgramadaId, { paraEscribir: true });
 
     if (!casillas || typeof casillas !== 'object' || Array.isArray(casillas)) {
       throw new ErrorValidacion(400, 'Formato inválido: se espera { casillas: { SER: [], SABER: [], HACER: [] } }');
@@ -301,8 +305,12 @@ exports.guardarCasillas = async (req, res) => {
         const nombres = new Map(plan[dimension].items.filter((i) => i.id).map((i) => [i.id, i.nombre]));
         let orden = inicio;
         for (const c of plan[dimension].conservar) {
-          await tx.casilla.update({ where: { id: c.id }, data: { orden, nombre: nombres.get(c.id) } });
-          if ((c.nombre ?? null) !== (nombres.get(c.id) ?? null)) {
+          const cambiaNombre = (c.nombre ?? null) !== (nombres.get(c.id) ?? null);
+          // Solo se escribe la casilla que cambia de nombre o de posición
+          if (cambiaNombre || c.orden !== orden) {
+            await tx.casilla.update({ where: { id: c.id }, data: { orden, nombre: nombres.get(c.id) } });
+          }
+          if (cambiaNombre) {
             auditar('MODIFICAR', c, { trimestre, dimension, nombre: c.nombre }, { trimestre, dimension, nombre: nombres.get(c.id) });
           }
           orden += 1;
@@ -315,11 +323,16 @@ exports.guardarCasillas = async (req, res) => {
         }
       }
 
-      await recalcularNotas(materiaProgramadaId, trimestre, { cliente: tx });
+      // Crear o quitar casillas cambia las notas (una casilla nueva vacía deja el
+      // componente PENDIENTE); solo renombrar o reordenar no las cambia
+      const hayNuevas = Object.values(plan).some((p) => p.items.some((i) => !i.id));
+      if (eliminar.length || hayNuevas || !asistencia) {
+        await recalcularNotas(materiaProgramadaId, trimestre, { cliente: tx, programacion });
+      }
       await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
 
-    res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true }));
+    res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true, programacion }));
   } catch (error) {
     responderError(res, error, 'guardarCasillas');
   }
@@ -327,7 +340,8 @@ exports.guardarCasillas = async (req, res) => {
 
 // ── PUT /api/notas/calificaciones ────────────────────────────────────
 // Body: { materiaProgramadaId,
-//         calificaciones:   [{ estudianteId, casillaId, valor }],  valor: entero 0–100 o null (borrar)
+//         calificaciones:   [{ estudianteId, casillaId, valor }],  valor: entero de 0 al máximo de su
+//                                                                  dimensión (SER 10, SABER 45, HACER 40) o null (borrar)
 //         autoevaluaciones: [{ estudianteId, valor }] }             valor: entero 0–5 o null
 exports.guardarCalificaciones = async (req, res) => {
   try {
@@ -346,10 +360,18 @@ exports.guardarCalificaciones = async (req, res) => {
       throw new ErrorValidacion(400, 'No hay cambios para guardar');
     }
 
-    const casillas = await prisma.casilla.findMany({
-      where: { materiaProgramadaId, trimestre },
-      select: { id: true, esAsistencia: true },
-    });
+    const afectados = [...new Set([
+      ...calificaciones.map((c) => c?.estudianteId),
+      ...autoevaluaciones.map((a) => a?.estudianteId),
+    ])];
+    // En paralelo: las casillas de la materia y que los estudiantes sean del curso y estén activos
+    const [casillas, pertenencia] = await Promise.all([
+      prisma.casilla.findMany({
+        where: { materiaProgramadaId, trimestre },
+        select: { id: true, esAsistencia: true, dimension: true },
+      }),
+      verificarEstudiantesEnCurso(afectados, programacion.cursoId),
+    ]);
     const casillasPorId = new Map(casillas.map((c) => [c.id, c]));
 
     const pares = new Set();
@@ -360,8 +382,9 @@ exports.guardarCalificaciones = async (req, res) => {
       const casilla = casillasPorId.get(c.casillaId);
       if (!casilla) throw new ErrorValidacion(400, 'La casilla no pertenece a esta materia y trimestre');
       if (casilla.esAsistencia) throw new ErrorValidacion(400, 'La casilla de asistencia se calcula automáticamente y no se puede editar');
-      if (c.valor !== null && !esEnteroEnRango(c.valor, 0, 100)) {
-        throw new ErrorValidacion(400, 'Cada casilla debe ser un número entero entre 0 y 100');
+      const maximo = MAX_CASILLA[casilla.dimension];
+      if (c.valor !== null && !esEnteroEnRango(c.valor, 0, maximo)) {
+        throw new ErrorValidacion(400, `Las casillas de ${casilla.dimension} deben ser números enteros entre 0 y ${maximo}`);
       }
       const par = `${c.estudianteId}|${c.casillaId}`;
       if (pares.has(par)) throw new ErrorValidacion(400, 'Hay calificaciones repetidas para el mismo estudiante y casilla');
@@ -378,27 +401,32 @@ exports.guardarCalificaciones = async (req, res) => {
       autoPorEstudiante.set(a.estudianteId, a.valor);
     }
 
-    const afectados = [...new Set([...calificaciones.map((c) => c.estudianteId), ...autoPorEstudiante.keys()])];
-    const pertenencia = await verificarEstudiantesEnCurso(afectados, programacion.cursoId);
     if (pertenencia.error) throw new ErrorValidacion(pertenencia.status, pertenencia.error);
 
     let resultados;
     await prisma.$transaction(async (tx) => {
       // Valores anteriores, para la auditoría (quién cambió qué y desde qué valor)
-      const previas = await tx.calificacionCasilla.findMany({
-        where: { casillaId: { in: [...new Set(calificaciones.map((c) => c.casillaId))] }, estudianteId: { in: afectados } },
-        select: { casillaId: true, estudianteId: true, valor: true },
-      });
+      const [previas, notasPrevias] = await Promise.all([
+        tx.calificacionCasilla.findMany({
+          where: { casillaId: { in: [...new Set(calificaciones.map((c) => c.casillaId))] }, estudianteId: { in: afectados } },
+          select: { casillaId: true, estudianteId: true, valor: true },
+        }),
+        tx.nota.findMany({
+          where: { materiaProgramadaId, trimestre, estudianteId: { in: [...autoPorEstudiante.keys()] } },
+          select: { estudianteId: true, autoevaluacion: true },
+        }),
+      ]);
       const valorPrevio = new Map(previas.map((p) => [`${p.estudianteId}|${p.casillaId}`, p.valor]));
-      const autoPrevias = new Map((await tx.nota.findMany({
-        where: { materiaProgramadaId, trimestre, estudianteId: { in: [...autoPorEstudiante.keys()] } },
-        select: { estudianteId: true, autoevaluacion: true },
-      })).map((n) => [n.estudianteId, n.autoevaluacion]));
+      const autoPrevias = new Map(notasPrevias.map((n) => [n.estudianteId, n.autoevaluacion]));
 
       const cambios = [];
+      const aGuardar = [];
+      const aBorrar = [];
       for (const c of calificaciones) {
         const anterior = valorPrevio.get(`${c.estudianteId}|${c.casillaId}`) ?? null;
         if (anterior === c.valor) continue;
+        if (c.valor === null) aBorrar.push(c);
+        else aGuardar.push(c);
         cambios.push({
           entidad: 'CALIFICACION_CASILLA', accion: accionDe(anterior, c.valor), entidadId: c.casillaId,
           materiaProgramadaId, estudianteId: c.estudianteId, usuarioId: req.user.id,
@@ -417,22 +445,26 @@ exports.guardarCalificaciones = async (req, res) => {
         });
       }
 
-      for (const c of calificaciones) {
-        if (c.valor === null) {
-          await tx.calificacionCasilla.deleteMany({ where: { casillaId: c.casillaId, estudianteId: c.estudianteId } });
-        } else {
-          await tx.calificacionCasilla.upsert({
-            where: { casillaId_estudianteId: { casillaId: c.casillaId, estudianteId: c.estudianteId } },
-            update: { valor: c.valor, registradoPorId: req.user.id },
-            create: { casillaId: c.casillaId, estudianteId: c.estudianteId, valor: c.valor, registradoPorId: req.user.id },
-          });
-        }
+      // Todas las casillas en 1 o 2 consultas (antes, una por casilla: muy lento con la BD remota)
+      if (aBorrar.length) {
+        await tx.calificacionCasilla.deleteMany({
+          where: { OR: aBorrar.map((c) => ({ casillaId: c.casillaId, estudianteId: c.estudianteId })) },
+        });
+      }
+      if (aGuardar.length) {
+        await tx.$executeRaw`
+          INSERT INTO calificaciones_casilla (id, "casillaId", "estudianteId", valor, "registradoPorId", "creadoEn", "actualizadoEn")
+          SELECT gen_random_uuid()::text, t.c, t.e, t.v, ${req.user.id}, now(), now()
+          FROM unnest(${aGuardar.map((c) => c.casillaId)}::text[], ${aGuardar.map((c) => c.estudianteId)}::text[], ${aGuardar.map((c) => c.valor)}::int[]) AS t(c, e, v)
+          ON CONFLICT ("casillaId", "estudianteId") DO UPDATE SET
+            valor = EXCLUDED.valor, "registradoPorId" = EXCLUDED."registradoPorId", "actualizadoEn" = now()`;
       }
       // Se recalcula a TODO el curso: calificar por primera vez una casilla hace
       // que cuente (con 0) también para quienes aún no tienen nota en ella.
       resultados = await recalcularNotas(materiaProgramadaId, trimestre, {
         autoevaluaciones: autoPorEstudiante,
         cliente: tx,
+        programacion,
       });
       await registrarCambios(tx, cambios);
     }, OPCIONES_TRANSACCION);
@@ -442,7 +474,7 @@ exports.guardarCalificaciones = async (req, res) => {
     evaluarRiesgoEnSegundoPlano([...afectados].filter((id) => resultados.get(id)),
       { materiaProgramadaId, trimestre, origen: 'notas' });
 
-    res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true }));
+    res.json(await construirPlanilla(materiaProgramadaId, trimestre, { editable: true, programacion }));
   } catch (error) {
     responderError(res, error, 'guardarCalificaciones');
   }

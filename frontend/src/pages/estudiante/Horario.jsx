@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User } from 'lucide-react';
 import estudianteService from '../../services/estudiante.service';
+import { DIAS_SEMANA as DIAS, agruparPorDia, leerHorario } from '../../utils/horario';
 
-const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+const docenteInactivo = (p) => p.docente?.usuario?.activo === false;
+const claveHorario = (p) => {
+  const { dia, hora } = leerHorario(p.horario);
+  return `${dia}|${hora}`;
+};
+
+// La clase de un docente inactivo se oculta si ese mismo día y hora ya tiene
+// una clase con docente activo (el reemplazo); si no, se muestra "por asignar".
+function clasesVigentes(programaciones) {
+  const ocupados = new Set(programaciones.filter((p) => !docenteInactivo(p)).map(claveHorario));
+  return programaciones.filter((p) => !docenteInactivo(p) || !ocupados.has(claveHorario(p)));
+}
 
 const Horario = () => {
   const [programaciones, setProgramaciones] = useState([]);
@@ -20,17 +32,8 @@ const Horario = () => {
     }
   };
 
-  const parseHorario = (str) => {
-    const parts = str.split(' ');
-    return { dia: parts[0] || 'Desconocido', horas: parts[1] || 'Sin hora' };
-  };
-
-  const horarioPorDia = DIAS.reduce((acc, dia) => {
-    acc[dia] = programaciones
-      .filter(p => parseHorario(p.horario).dia.toLowerCase() === dia.toLowerCase())
-      .sort((a, b) => parseHorario(a.horario).horas.localeCompare(parseHorario(b.horario).horas));
-    return acc;
-  }, {});
+  // Acepta "Lunes-07:30" (formato oficial) y el antiguo "Lunes 07:30"
+  const horarioPorDia = agruparPorDia(clasesVigentes(programaciones));
 
   if (loading) {
     return (
@@ -77,18 +80,18 @@ const Horario = () => {
                 </div>
               ) : (
                 horarioPorDia[dia].map(p => {
-                  const { horas } = parseHorario(p.horario);
+                  const horas = p.hora;
+                  const porAsignar = docenteInactivo(p);
                   return (
                     <div
                       key={p.id}
                       className="rounded-xl p-3 transition-all"
-                      style={{
-                        backgroundColor: 'var(--ios-blue-light)',
-                        border: '1px solid rgba(0,122,255,0.15)',
-                      }}
+                      style={porAsignar
+                        ? { backgroundColor: 'var(--ios-bg)', border: '1px dashed var(--ios-separator)', opacity: 0.7 }
+                        : { backgroundColor: 'var(--ios-blue-light)', border: '1px solid rgba(0,122,255,0.15)' }}
                     >
                       <div className="text-[12px] font-semibold mb-2 leading-tight"
-                        style={{ color: 'var(--ios-blue)' }}>
+                        style={{ color: porAsignar ? 'var(--ios-secondary)' : 'var(--ios-blue)' }}>
                         {p.materia.nombre}
                       </div>
                       <div className="flex flex-col gap-1">
@@ -101,7 +104,9 @@ const Horario = () => {
                           style={{ color: 'var(--ios-secondary)' }}>
                           <User size={10} />
                           <span className="truncate">
-                            Prof. {p.docente.usuario.nombre.split(' ')[0]} {p.docente.usuario.nombre.split(' ')[1]}
+                            {porAsignar
+                              ? 'Docente por asignar'
+                              : `Prof. ${p.docente.usuario.nombre.split(' ').slice(0, 2).join(' ')}`}
                           </span>
                         </div>
                       </div>

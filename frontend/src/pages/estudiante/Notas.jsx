@@ -24,7 +24,7 @@ function DetalleCasillas({ materia }) {
       {DIMENSIONES.map(({ clave, puntos, color }) => (
         <div key={clave}>
           <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color }}>
-            {clave} ({puntos}) — {materia.nota ? `${materia.nota[clave.toLowerCase()]} pts` : 'sin notas'}
+            {clave} ({puntos}) — {!materia.nota ? 'sin notas' : materia.nota[clave.toLowerCase()] === null ? 'pendiente' : `${materia.nota[clave.toLowerCase()]} pts`}
           </div>
           {materia.detalle[clave].length === 0 ? (
             <div className="text-[12px]" style={{ color: 'var(--ios-tertiary)' }}>El profesor aún no creó casillas.</div>
@@ -38,7 +38,9 @@ function DetalleCasillas({ materia }) {
                       <span style={{ color: 'var(--ios-tertiary)' }}> ({c.asistencia.presentes + c.asistencia.justificados} de {c.asistencia.total})</span>
                     )}
                   </span>
-                  <span className="font-semibold">{c.cuenta ? c.valor : (c.esAsistencia ? 'sin listas aún' : 'aún no calificada')}</span>
+                  <span className="font-semibold" style={!c.cuenta && !c.esAsistencia ? { color: 'var(--ios-orange)' } : undefined}>
+                    {c.cuenta ? `${c.valor}/${puntos}` : (c.esAsistencia ? 'sin listas aún' : 'pendiente')}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -139,7 +141,8 @@ const Notas = () => {
                 </td>
               </tr>
             ) : materias.map((m) => {
-              const est = m.nota ? estado(m.nota.aprobado) : null;
+              const est = m.nota && !m.nota.pendiente ? estado(m.nota.aprobado) : null;
+              const celda = (v) => (v === null || v === undefined ? <span style={{ color: 'var(--ios-tertiary)' }}>Pend.</span> : v);
               const abiertaAqui = abierta === m.materiaProgramadaId;
               return (
                 <Fragment key={m.materiaProgramadaId}>
@@ -153,12 +156,20 @@ const Notas = () => {
                     </td>
                     {m.nota ? (
                       <>
-                        <td className="text-center">{m.nota.ser}</td>
-                        <td className="text-center">{m.nota.saber}</td>
-                        <td className="text-center">{m.nota.hacer}</td>
-                        <td className="text-center">{m.nota.autoevaluacion ?? '—'}</td>
-                        <td className="text-center font-bold text-[15px]" style={{ color: m.nota.aprobado ? 'var(--ios-green)' : 'var(--ios-red)' }}>{m.nota.total}</td>
-                        <td className="text-center"><span className={est.cls}>{est.label}</span></td>
+                        <td className="text-center">{celda(m.nota.ser)}</td>
+                        <td className="text-center">{celda(m.nota.saber)}</td>
+                        <td className="text-center">{celda(m.nota.hacer)}</td>
+                        <td className="text-center">{celda(m.nota.autoevaluacion)}</td>
+                        {m.nota.pendiente ? (
+                          <td colSpan={2} className="text-center">
+                            <span className="ios-badge ios-badge-neutral">Calificación pendiente</span>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="text-center font-bold text-[15px]" style={{ color: m.nota.aprobado ? 'var(--ios-green)' : 'var(--ios-red)' }}>{m.nota.total}</td>
+                            <td className="text-center"><span className={est.cls}>{est.label}</span></td>
+                          </>
+                        )}
                       </>
                     ) : (
                       <td colSpan={6} className="text-center text-[12px]" style={{ color: 'var(--ios-tertiary)' }}>
@@ -181,6 +192,7 @@ const Notas = () => {
       </div>
       <p className="text-[11px] print:hidden" style={{ color: 'var(--ios-tertiary)' }}>
         Toca una materia para ver el detalle de tus casillas. Cada dimensión es el promedio de sus casillas, redondeado.
+        Mientras falte calificar alguna casilla o la autoevaluación, verás «Calificación pendiente».
       </p>
 
       {/* Resumen anual */}
@@ -204,10 +216,12 @@ const Notas = () => {
                 <tr key={m.materiaProgramadaId}>
                   <td className="font-semibold">{m.materia}</td>
                   {[1, 2, 3].map((t) => (
-                    <td key={t} className="text-center">{m.trimestres[t] ?? '—'}</td>
+                    <td key={t} className="text-center">
+                      {m.trimestresPendientes?.includes(t) ? <span style={{ color: 'var(--ios-tertiary)' }}>Pend.</span> : (m.trimestres[t] ?? '—')}
+                    </td>
                   ))}
                   <td className="text-center font-bold" style={{ color: m.anual.nota === null ? 'var(--ios-tertiary)' : m.anual.nota >= datos.umbralAprobacion ? 'var(--ios-green)' : 'var(--ios-red)' }}>
-                    {m.anual.nota ?? '—'}
+                    {m.anual.pendiente ? <span className="text-[11px] font-normal">Pendiente</span> : (m.anual.nota ?? '—')}
                     {m.anual.nota !== null && m.anual.parcial && (
                       <span className="block text-[10px] font-normal" style={{ color: 'var(--ios-tertiary)' }}>
                         parcial ({m.anual.trimestresConNota} de 3)

@@ -1,7 +1,7 @@
 const prisma = require('../lib/prisma');
 const { iaHabilitada, PREDICCION_NO_DISPONIBLE, filtroModeloVigente } = require('../services/iaService');
 const { periodoActivo, hoyLaPaz } = require('../services/periodoService');
-const { DIMENSIONES, cargarContexto, valorAsistencia, notaAnual } = require('../services/calificacionService');
+const { DIMENSIONES, cargarContexto, calcularDesdeContexto, valorAsistencia, notaAnual } = require('../services/calificacionService');
 const QRCode = require('qrcode');
 const qrAsistencia = require('../services/qrAsistenciaService');
 
@@ -37,19 +37,33 @@ exports.getMisNotas = async (req, res) => {
       where: { cursoId: estudiante.cursoId, gestion },
       select: {
         id: true,
+        cursoId: true,
+        gestion: true,
         materia: { select: { nombre: true } },
-        docente: { select: { usuario: { select: { nombre: true } } } },
+        docente: { select: { usuario: { select: { nombre: true, activo: true } } } },
       },
       orderBy: { materia: { nombre: 'asc' } },
     });
 
-    const notasDelAnio = await prisma.nota.findMany({
-      where: { estudianteId: estudiante.id, materiaProgramadaId: { in: programaciones.map((p) => p.id) } },
-    });
+    const [notasDelAnio, config] = await Promise.all([
+      prisma.nota.findMany({
+        where: { estudianteId: estudiante.id, materiaProgramadaId: { in: programaciones.map((p) => p.id) } },
+      }),
+      prisma.configuracion.findFirst(),
+    ]);
+
+    // La clase de un docente desactivado solo se muestra si el estudiante tiene
+    // notas en ella (historial); si no, es una clase vacía que confunde.
+    const conNotas = new Set(notasDelAnio.map((n) => n.materiaProgramadaId));
+    const visibles = programaciones.filter((p) => p.docente?.usuario?.activo !== false || conNotas.has(p.id));
+
+    // Las materias se cargan en paralelo (antes, una tras otra)
+    const contextos = await Promise.all(visibles.map((p) => cargarContexto(p.id, trimestre, undefined, p)));
 
     const materias = [];
-    for (const p of programaciones) {
-      const ctx = await cargarContexto(p.id, trimestre);
+    for (const [i, p] of visibles.entries()) {
+      const ctx = contextos[i];
+      const calculo = calcularDesdeContexto(ctx, estudiante.id);
       const misValores = ctx.valoresPorEstudiante.get(estudiante.id) || new Map();
       const miAsistencia = ctx.asistenciaPorEstudiante.get(estudiante.id) || { presentes: 0, justificados: 0, ausentes: 0, total: 0 };
       const valorAsis = valorAsistencia(miAsistencia);
@@ -63,15 +77,20 @@ exports.getMisNotas = async (req, res) => {
             if (c.esAsistencia) {
               return { nombre: 'Asistencia', esAsistencia: true, valor: valorAsis, cuenta: valorAsis !== null, asistencia: miAsistencia };
             }
-            const cuenta = ctx.casillasCalificadas.has(c.id);
+            // Vacía = aún no calificada (deja el componente pendiente); un 0 sí cuenta
             const propio = misValores.get(c.id);
-            return { nombre: c.nombre, orden: c.orden, esAsistencia: false, valor: cuenta ? (propio ?? 0) : null, cuenta };
+            const calificada = Number.isInteger(propio);
+            return { nombre: c.nombre, orden: c.orden, esAsistencia: false, valor: calificada ? propio : null, cuenta: calificada };
           });
       }
 
       const nota = ctx.notasPorEstudiante.get(estudiante.id);
       const porTrimestre = { 1: null, 2: null, 3: null };
-      for (const n of notasDelAnio.filter((x) => x.materiaProgramadaId === p.id)) porTrimestre[n.trimestre] = n.total;
+      const trimestresPendientes = [];
+      for (const n of notasDelAnio.filter((x) => x.materiaProgramadaId === p.id)) {
+        porTrimestre[n.trimestre] = n.total;
+        if (n.total === null) trimestresPendientes.push(n.trimestre);
+      }
       const totales = Object.values(porTrimestre).filter((t) => t !== null);
 
       materias.push({
@@ -81,14 +100,19 @@ exports.getMisNotas = async (req, res) => {
         nota: nota ? {
           ser: nota.ser, saber: nota.saber, hacer: nota.hacer,
           autoevaluacion: nota.autoevaluacion, total: nota.total, aprobado: nota.aprobado,
+          pendiente: nota.total === null,
+          pendientes: calculo.pendientes,
         } : null,
         detalle,
         trimestres: porTrimestre,
-        anual: { nota: notaAnual(totales), trimestresConNota: totales.length, parcial: totales.length < 3 },
+        trimestresPendientes,
+        // Si algún trimestre registrado está pendiente, la nota anual también
+        anual: trimestresPendientes.length
+          ? { nota: null, pendiente: true, trimestresConNota: totales.length, parcial: true }
+          : { nota: notaAnual(totales), pendiente: false, trimestresConNota: totales.length, parcial: totales.length < 3 },
       });
     }
 
-    const config = await prisma.configuracion.findFirst();
     res.json({
       gestion,
       trimestre,
@@ -115,7 +139,8 @@ exports.getMiHorario = async (req, res) => {
         // (contiene password y twoFactorSecret).
         docente: {
           select: {
-            usuario: { select: { nombre: true } }
+            // activo: para mostrar "Docente por asignar" si el docente fue desactivado
+            usuario: { select: { nombre: true, activo: true } }
           }
         }
       }

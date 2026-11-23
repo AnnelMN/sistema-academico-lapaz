@@ -80,12 +80,15 @@ const getReporteConsolidado = async (req, res) => {
     const asistenciaPromedio =
       asistencias.length > 0 ? (asistenciasValidas / asistencias.length) * 100 : 0;
 
-    const totalNotas = notas.length;
+    // Promedios y aprobados solo con notas COMPLETAS; las pendientes se cuentan aparte
+    const completas = notas.filter((n) => n.total !== null);
+    const notasPendientes = notas.length - completas.length;
+    const totalNotas = completas.length;
     const promedioNotas =
       totalNotas > 0
-        ? notas.reduce((sum, n) => sum + n.total, 0) / totalNotas
+        ? completas.reduce((sum, n) => sum + n.total, 0) / totalNotas
         : 0;
-    const aprobados = notas.filter((n) => n.total >= umbralAprobacion).length;
+    const aprobados = completas.filter((n) => n.total >= umbralAprobacion).length;
     const reprobados = totalNotas - aprobados;
 
     const notasEstudiante = new Map();
@@ -99,6 +102,7 @@ const getReporteConsolidado = async (req, res) => {
     const resumen = {
       totalEstudiantesConNotas: notasEstudiante.size,
       totalNotas,
+      notasPendientes,
       promedioNotas: Math.round(promedioNotas * 100) / 100,
       aprobados,
       reprobados,
@@ -149,13 +153,13 @@ const getReporteConsolidado = async (req, res) => {
     };
 
     const porCurso = agrupar(
-      notas,
+      completas,
       (n) => n.estudiante.cursoId,
       (n) => `${n.estudiante.curso.nivel}° ${n.estudiante.curso.paralelo}`
     );
 
     const porMateria = agrupar(
-      notas,
+      completas,
       (n) => n.materiaProgramada.materiaId,
       (n) => n.materiaProgramada.materia.nombre
     );
@@ -171,7 +175,8 @@ const getReporteConsolidado = async (req, res) => {
       hacer: n.hacer,
       autoevaluacion: n.autoevaluacion,
       total: n.total,
-      aprobado: n.total >= umbralAprobacion,
+      aprobado: n.total === null ? null : n.total >= umbralAprobacion,
+      pendiente: n.total === null,
       creadoEn: n.creadoEn,
     }));
 

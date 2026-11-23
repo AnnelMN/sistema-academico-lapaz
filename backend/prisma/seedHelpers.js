@@ -2,7 +2,7 @@
 // Los datos de ejemplo usan la escala real del colegio (SER 10 · SABER 45 ·
 // HACER 40 · AUTOEVALUACIÓN 5) y el MISMO cálculo que el sistema
 // (src/services/calificacionService.js), así nunca quedan notas inconsistentes.
-const { recalcularNotas } = require('../src/services/calificacionService');
+const { recalcularNotas, dividirRedondeando, MAX_CASILLA } = require('../src/services/calificacionService');
 
 // Fechas de los trimestres 2026 informadas por el colegio.
 // Los lunes 11/05 y 31/08 son días de descanso (no pertenecen a ningún trimestre).
@@ -30,7 +30,8 @@ const CASILLAS_EJEMPLO = {
   HACER: ['Proyecto', 'Trabajo en grupo'],
 };
 
-// Perfiles de rendimiento: notas de las casillas (enteros 0–100), autoevaluación y faltas
+// Perfiles de rendimiento: porcentaje logrado en cada casilla (0–100), autoevaluación y faltas.
+// Al crear la calificación se pasa a la escala de la casilla (SER /10, SABER /45, HACER /40).
 const PERFILES = {
   alto: { notas: [95, 88, 100, 92, 85, 97, 90], autoevaluacion: 5, ausentes: 0, justificados: 1 },
   medio: { notas: [75, 70, 62, 68, 74, 80, 66], autoevaluacion: 4, ausentes: 2, justificados: 1 },
@@ -105,7 +106,9 @@ async function crearNotasDeEjemplo(db, { materiaProgramadaId, trimestre, estudia
     const notas = PERFILES[e.perfil].notas;
     manuales.forEach((c, i) => {
       // Se rota la lista según el trimestre para que las notas varíen entre trimestres
-      calificaciones.push({ casillaId: c.id, estudianteId: e.id, valor: notas[(i + trimestre - 1) % notas.length], registradoPorId });
+      const porcentaje = notas[(i + trimestre - 1) % notas.length];
+      const valor = dividirRedondeando(porcentaje * MAX_CASILLA[c.dimension], 100);
+      calificaciones.push({ casillaId: c.id, estudianteId: e.id, valor, registradoPorId });
     });
   }
   await db.calificacionCasilla.createMany({ data: calificaciones });

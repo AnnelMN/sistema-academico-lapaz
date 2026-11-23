@@ -1,4 +1,6 @@
 const prisma = require('../lib/prisma');
+const { esIdValido } = require('../lib/acceso');
+const { normalizarHorario } = require('../lib/horario');
 
 const getProgramaciones = async (req, res) => {
   try {
@@ -16,7 +18,7 @@ const getProgramaciones = async (req, res) => {
         materia: true,
         docente: {
           include: {
-            usuario: { select: { nombre: true } }
+            usuario: { select: { nombre: true, activo: true } }
           }
         },
         curso: true
@@ -31,13 +33,29 @@ const getProgramaciones = async (req, res) => {
 
 const createProgramacion = async (req, res) => {
   try {
-    const { materiaId, docenteId, cursoId, horario } = req.body;
-    
-    if (!materiaId || !docenteId || !cursoId || !horario) {
+    const { materiaId, docenteId, cursoId } = req.body || {};
+
+    if (![materiaId, docenteId, cursoId].every(esIdValido) || !req.body?.horario) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
 
+    // Formato único "Día-HH:MM" (lunes a viernes): los conflictos se comparan
+    // siempre con el mismo texto
+    const horario = normalizarHorario(req.body.horario);
+    if (!horario) {
+      return res.status(400).json({ error: 'Horario inválido: use el formato Día-HH:MM, de lunes a viernes (por ejemplo Lunes-07:30)' });
+    }
+
     const gestion = new Date().getFullYear();
+
+    // Solo se asignan docentes activos
+    const docente = await prisma.docente.findUnique({
+      where: { id: docenteId },
+      select: { usuario: { select: { activo: true } } },
+    });
+    if (!docente?.usuario?.activo) {
+      return res.status(400).json({ error: 'El docente no existe o está inactivo' });
+    }
 
     // 1. Validar Conflicto: ¿El Docente ya tiene clase en ese horario?
     const docenteConflict = await prisma.materiaProgramada.findFirst({
@@ -62,7 +80,9 @@ const createProgramacion = async (req, res) => {
       where: {
         cursoId,
         horario,
-        gestion
+        gestion,
+        // La clase de un docente inactivo no ocupa el espacio del curso
+        docente: { usuario: { activo: true } }
       },
       include: {
         materia: true

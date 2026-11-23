@@ -55,10 +55,12 @@ const EstudianteDashboard = () => {
     );
   }
 
-  const promedioGeneral = notas.length > 0
-    ? Math.round(notas.reduce((acc, curr) => acc + curr.total, 0) / notas.length)
+  // Solo notas completas: una «Calificación pendiente» no se promedia ni aprueba
+  const completas = notas.filter((n) => n.total !== null);
+  const promedioGeneral = completas.length > 0
+    ? Math.round(completas.reduce((acc, curr) => acc + curr.total, 0) / completas.length)
     : 0;
-  const materiasAprobadas = notas.filter(n => n.aprobado).length;
+  const materiasAprobadas = completas.filter(n => n.aprobado).length;
   const asistenciaGlobal  = asistencia.length > 0
     ? Math.round(asistencia.reduce((acc, curr) => acc + curr.porcentaje, 0) / asistencia.length)
     : 0;
@@ -142,7 +144,7 @@ const EstudianteDashboard = () => {
             </span>
           </div>
           <div className="text-[28px] font-bold" style={{ color: 'var(--ios-label)' }}>{promedioGeneral}</div>
-          <span className="ios-badge ios-badge-warning mt-2">Trimestre 1</span>
+          <span className="ios-badge ios-badge-warning mt-2">Trimestre {trimestreNotas ?? '—'}</span>
         </div>
 
         <div className="ios-card p-5">
@@ -153,9 +155,11 @@ const EstudianteDashboard = () => {
             </span>
           </div>
           <div className="text-[28px] font-bold" style={{ color: 'var(--ios-label)' }}>
-            {materiasAprobadas}/{notas.length || 0}
+            {materiasAprobadas}/{completas.length || 0}
           </div>
-          <span className="ios-badge ios-badge-info mt-2">Hasta ahora</span>
+          <span className="ios-badge ios-badge-info mt-2">
+            {notas.length > completas.length ? `${notas.length - completas.length} pendiente(s)` : 'Hasta ahora'}
+          </span>
         </div>
 
         <div className="ios-card p-5">
@@ -200,7 +204,8 @@ const EstudianteDashboard = () => {
               </div>
             ) : (
               notas.map((nota, idx) => {
-                const estado = calcularEstadoNota(nota.aprobado);
+                const pendiente = nota.total === null;
+                const estado = pendiente ? { label: 'Calificación pendiente', cls: 'ios-badge ios-badge-neutral' } : calcularEstadoNota(nota.aprobado);
                 return (
                   <div
                     key={nota.id}
@@ -212,7 +217,7 @@ const EstudianteDashboard = () => {
                     </span>
                     <div className="flex gap-2 items-center">
                       <span className="text-[13px] font-bold" style={{ color: 'var(--ios-label)' }}>
-                        {nota.total}
+                        {pendiente ? '' : nota.total}
                       </span>
                       <span className={estado.cls}>{estado.label}</span>
                     </div>

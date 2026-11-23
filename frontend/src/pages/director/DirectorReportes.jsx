@@ -70,12 +70,12 @@ export default function DirectorReportes() {
       r.curso,
       r.materia,
       r.trimestre,
-      r.ser,
-      r.saber,
-      r.hacer,
-      r.autoevaluacion ?? '',
-      r.total,
-      r.aprobado ? 'Aprobado' : 'Reprobado',
+      r.ser ?? 'Pendiente',
+      r.saber ?? 'Pendiente',
+      r.hacer ?? 'Pendiente',
+      r.autoevaluacion ?? 'Pendiente',
+      r.total ?? '',
+      r.pendiente ? 'Calificación pendiente' : r.aprobado ? 'Aprobado' : 'Reprobado',
       formatDate(r.creadoEn),
     ]);
     // Neutraliza fórmulas: una celda que empieza con = + - @ se ejecutaría en Excel
@@ -231,7 +231,8 @@ export default function DirectorReportes() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Estudiantes con notas', value: resumen?.totalEstudiantesConNotas ?? 0 },
-          { label: 'Notas registradas', value: resumen?.totalNotas ?? 0 },
+          { label: 'Notas completas', value: resumen?.totalNotas ?? 0 },
+          { label: 'Calificaciones pendientes', value: resumen?.notasPendientes ?? 0 },
           { label: 'Promedio general', value: resumen?.promedioNotas ?? 0 },
           { label: 'Aprobados', value: resumen?.aprobados ?? 0 },
           { label: 'Reprobados', value: resumen?.reprobados ?? 0 },
@@ -353,18 +354,18 @@ export default function DirectorReportes() {
                   <td className="px-4 py-3 text-[12px]">{r.curso}</td>
                   <td className="px-4 py-3 text-[12px]">{r.materia}</td>
                   <td className="px-4 py-3 text-center text-[12px]">{r.trimestre}</td>
-                  <td className="px-2 py-3 text-center text-[12px]">{r.ser}</td>
-                  <td className="px-2 py-3 text-center text-[12px]">{r.saber}</td>
-                  <td className="px-2 py-3 text-center text-[12px]">{r.hacer}</td>
-                  <td className="px-2 py-3 text-center text-[12px]">{r.autoevaluacion ?? '—'}</td>
-                  <td className="px-4 py-3 text-center text-[12px] font-bold">{r.total}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.ser ?? 'Pend.'}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.saber ?? 'Pend.'}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.hacer ?? 'Pend.'}</td>
+                  <td className="px-2 py-3 text-center text-[12px]">{r.autoevaluacion ?? 'Pend.'}</td>
+                  <td className="px-4 py-3 text-center text-[12px] font-bold">{r.total ?? '—'}</td>
                   <td className="px-4 py-3 text-center text-[12px]">
                     <span
                       className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                        r.aprobado ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        r.pendiente ? 'bg-slate-100 text-slate-600' : r.aprobado ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                       }`}
                     >
-                      {r.aprobado ? 'Aprobado' : 'Reprobado'}
+                      {r.pendiente ? 'Calificación pendiente' : r.aprobado ? 'Aprobado' : 'Reprobado'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center text-[12px] text-slate-600">{formatDate(r.creadoEn)}</td>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  DIMENSIONES, PESOS, MAX_AUTOEVALUACION, calcularFila, leerEntero, claveCelda, claveAuto,
+  DIMENSIONES, PESOS, MAX_CASILLA, MAX_AUTOEVALUACION, calcularFila, leerEntero, claveCelda, claveAuto, textoPendientes,
 } from '../../utils/calculoNotas';
 
 // Planilla de notas por casillas, compartida por el profesor (editable) y el
@@ -16,19 +16,19 @@ const COLOR_DIMENSION = {
 
 const celdaBase = 'px-1.5 py-2 text-center text-[12px] whitespace-nowrap';
 
-function Entrada({ valor, max, onChange, invalido, etiqueta }) {
+function Entrada({ valor, max, onChange, invalido, pendiente, etiqueta }) {
   return (
     <input
       type="text"
       inputMode="numeric"
       aria-label={etiqueta}
-      title={etiqueta}
+      title={pendiente && !invalido ? `${etiqueta} — sin guardar` : etiqueta}
       value={valor}
       onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
       className="w-11 rounded-md px-1 py-1 text-center text-[12px] outline-none"
       style={{
-        border: `1px solid ${invalido ? 'var(--ios-red)' : 'var(--ios-separator)'}`,
-        backgroundColor: invalido ? 'var(--ios-red-light)' : 'transparent',
+        border: `1px solid ${invalido ? 'var(--ios-red)' : pendiente ? 'var(--ios-orange)' : 'var(--ios-separator)'}`,
+        backgroundColor: invalido ? 'var(--ios-red-light)' : pendiente ? 'var(--ios-orange-light)' : 'transparent',
         color: 'var(--ios-label)',
       }}
       placeholder="—"
@@ -46,11 +46,17 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
     return porDimension;
   }, [planilla]);
 
+  // Nota máxima de cada casilla según su dimensión (SER 10, SABER 45, HACER 40)
+  const maximoDe = useMemo(
+    () => new Map(planilla.casillas.map((c) => [c.id, MAX_CASILLA[c.dimension]])),
+    [planilla]
+  );
+
   // Valor efectivo de una celda: lo escrito (si hay) o lo guardado
   const valorDe = (estudiante, casillaId) => {
     const clave = claveCelda(estudiante.id, casillaId);
     if (clave in cambios) {
-      const v = leerEntero(cambios[clave], 100);
+      const v = leerEntero(cambios[clave], maximoDe.get(casillaId));
       return Number.isNaN(v) ? null : v;
     }
     return estudiante.valores[casillaId] ?? null;
@@ -78,6 +84,13 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
     const v = estudiante.valores[casillaId];
     return v === undefined || v === null ? '' : String(v);
   };
+
+  // Texto guardado de una celda (para saber si lo escrito es un cambio pendiente)
+  const guardadoCelda = (estudiante, casillaId) => {
+    const v = estudiante.valores[casillaId];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  const guardadoAuto = (estudiante) => (estudiante.autoevaluacion === null || estudiante.autoevaluacion === undefined ? '' : String(estudiante.autoevaluacion));
 
   const textoAuto = (estudiante) => {
     const clave = claveAuto(estudiante.id);
@@ -137,7 +150,7 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                 ...(lista.length ? lista.map((c, i) => (
                   <th
                     key={c.id}
-                    title={c.esAsistencia ? 'Asistencia (automática)' : c.nombre || `Casilla ${i + 1}`}
+                    title={`${c.esAsistencia ? 'Asistencia (automática)' : c.nombre || `Casilla ${i + 1}`} — sobre ${MAX_CASILLA[dimension]}`}
                     className="px-1.5 py-1.5 text-center text-[10px] font-semibold max-w-[70px] truncate"
                     style={{
                       color: c.esAsistencia ? 'var(--ios-tertiary)' : 'var(--ios-secondary)',
@@ -165,10 +178,10 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
             const inactivo = est.activo === false;
             const fila = inactivo ? {
               SER: est.ser, SABER: est.saber, HACER: est.hacer, total: est.total, aprobado: est.aprobado,
+              pendientes: est.total === null ? ['SER', 'SABER', 'HACER', 'AUTOEVALUACION'].filter((d) => (d === 'AUTOEVALUACION' ? est.autoevaluacion : est[d.toLowerCase()]) === null) : [],
             } : calcularFila({
               casillas: planilla.casillas,
               valorDe: (casillaId) => valorDe(est, casillaId),
-              calificadas,
               asistencia: est.asistencia?.valor ?? null,
               autoevaluacion: autoDe(est),
               umbral: planilla.umbralAprobacion,
@@ -201,15 +214,17 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                         );
                       }
                       const texto = textoCelda(est, c.id);
-                      const invalido = Number.isNaN(leerEntero(texto, 100));
+                      const maximo = MAX_CASILLA[dimension];
+                      const invalido = Number.isNaN(leerEntero(texto, maximo));
                       return (
                         <td key={c.id} className={celdaBase} style={borde}>
                           {editable ? (
                             <Entrada
                               valor={texto}
-                              max={100}
+                              max={maximo}
                               invalido={invalido}
-                              etiqueta={`${est.nombre} — ${dimension} — ${c.nombre || `Casilla ${i + 1}`}`}
+                              pendiente={texto !== guardadoCelda(est, c.id)}
+                              etiqueta={`${est.nombre} — ${dimension} — ${c.nombre || `Casilla ${i + 1}`} (0 a ${maximo})`}
                               onChange={(t) => onCambio(claveCelda(est.id, c.id), t)}
                             />
                           ) : (
@@ -220,8 +235,13 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                     }) : [
                       <td key={`${dimension}-vacia`} className={celdaBase} style={{ borderTop: '1px solid var(--ios-separator)', borderLeft: '2px solid var(--ios-separator)', color: 'var(--ios-tertiary)' }}>—</td>,
                     ]),
-                    <td key={`${dimension}-sub`} className={`${celdaBase} font-bold`} style={{ borderTop: '1px solid var(--ios-separator)', color: COLOR_DIMENSION[dimension] }}>
-                      {fila[dimension]}
+                    <td
+                      key={`${dimension}-sub`}
+                      className={`${celdaBase} ${fila[dimension] === null ? 'text-[10px] italic' : 'font-bold'}`}
+                      style={{ borderTop: '1px solid var(--ios-separator)', color: fila[dimension] === null ? 'var(--ios-tertiary)' : COLOR_DIMENSION[dimension] }}
+                      title={fila[dimension] === null ? `${dimension} pendiente: falta calificar alguna casilla${lista.filter((c) => !c.esAsistencia).length ? '' : ' (no hay casillas)'}` : undefined}
+                    >
+                      {fila[dimension] === null ? 'Pend.' : fila[dimension]}
                     </td>,
                   ];
                 })}
@@ -231,6 +251,7 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                       valor={textoAuto(est)}
                       max={MAX_AUTOEVALUACION}
                       invalido={Number.isNaN(leerEntero(textoAuto(est), MAX_AUTOEVALUACION))}
+                      pendiente={textoAuto(est) !== guardadoAuto(est)}
                       etiqueta={`${est.nombre} — Autoevaluación (0 a 5)`}
                       onChange={(t) => onCambio(claveAuto(est.id), t)}
                     />
@@ -238,13 +259,23 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                     <span style={{ color: 'var(--ios-label)' }}>{textoAuto(est) || '—'}</span>
                   )}
                 </td>
-                <td className={`${celdaBase} text-[14px] font-extrabold`} style={{ borderTop: '1px solid var(--ios-separator)', borderLeft: '2px solid var(--ios-separator)', color: fila.aprobado ? 'var(--ios-green)' : 'var(--ios-red)' }}>
-                  {fila.total}
+                <td
+                  className={`${celdaBase} text-[14px] font-extrabold`}
+                  style={{ borderTop: '1px solid var(--ios-separator)', borderLeft: '2px solid var(--ios-separator)', color: fila.total === null ? 'var(--ios-tertiary)' : fila.aprobado ? 'var(--ios-green)' : 'var(--ios-red)' }}
+                  title={fila.total === null ? textoPendientes(fila.pendientes) : undefined}
+                >
+                  {fila.total === null ? '—' : fila.total}
                 </td>
                 <td className={celdaBase} style={{ borderTop: '1px solid var(--ios-separator)' }}>
-                  <span className={fila.aprobado ? 'ios-badge ios-badge-success' : 'ios-badge ios-badge-danger'}>
-                    {fila.aprobado ? 'Aprobado' : 'Reprobado'}
-                  </span>
+                  {fila.total === null ? (
+                    <span className="ios-badge ios-badge-neutral" title={textoPendientes(fila.pendientes)}>
+                      Calificación pendiente
+                    </span>
+                  ) : (
+                    <span className={fila.aprobado ? 'ios-badge ios-badge-success' : 'ios-badge ios-badge-danger'}>
+                      {fila.aprobado ? 'Aprobado' : 'Reprobado'}
+                    </span>
+                  )}
                 </td>
               </tr>
             );

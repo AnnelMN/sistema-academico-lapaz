@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, AlertCircle, CheckCircle, Info, Lock } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle, Info, Lock, Loader2 } from 'lucide-react';
 import SidebarLayout from '../../components/layout/SidebarLayout';
 import PlanillaNotas from '../../components/notas/PlanillaNotas';
 import ConfiguradorCasillas from '../../components/notas/ConfiguradorCasillas';
 import { getMisMaterias, getPeriodoActual, getPlanilla, guardarCalificaciones } from '../../services/notas.service';
-import { leerEntero, MAX_AUTOEVALUACION } from '../../utils/calculoNotas';
+import { leerEntero, MAX_AUTOEVALUACION, MAX_CASILLA } from '../../utils/calculoNotas';
 
 // Registro de notas por casillas (escala SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5).
-// El docente configura sus casillas, califica de 0 a 100 y registra la autoevaluación (0 a 5).
+// El docente configura sus casillas, califica cada una en la escala de su dimensión
+// (SER 0–10, SABER 0–45, HACER 0–40) y registra la autoevaluación (0 a 5).
 // Los subtotales y el total se ven al instante; al guardar, el servidor recalcula.
 
 const menuGroups = [
@@ -32,12 +33,20 @@ const menuGroups = [
 const ETIQUETA_TRIMESTRE = { 1: '1.er', 2: '2.º', 3: '3.er' };
 
 const fechaCorta = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+const horaActual = () => new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+
+// Quita del borrador las celdas de casillas que ya no existen (por ejemplo, una casilla quitada)
+function podarCambios(cambios, planilla) {
+  const ids = new Set(planilla.casillas.map((c) => c.id));
+  return Object.fromEntries(Object.entries(cambios).filter(([clave]) => clave.startsWith('auto|') || ids.has(clave.split('|')[1])));
+}
 
 // Compara el borrador con lo guardado y arma lo que hay que enviar
 function calcularPendientes(planilla, cambios) {
   const resultado = { calificaciones: [], autoevaluaciones: [], invalidos: 0 };
   if (!planilla) return resultado;
   const porId = new Map(planilla.estudiantes.map((e) => [e.id, e]));
+  const maximoDe = new Map(planilla.casillas.map((c) => [c.id, MAX_CASILLA[c.dimension]]));
   for (const [clave, texto] of Object.entries(cambios)) {
     if (clave.startsWith('auto|')) {
       const estudianteId = clave.slice(5);
@@ -48,7 +57,7 @@ function calcularPendientes(planilla, cambios) {
       }
     } else {
       const [estudianteId, casillaId] = clave.split('|');
-      const valor = leerEntero(texto, 100);
+      const valor = leerEntero(texto, maximoDe.get(casillaId) ?? 0);
       if (Number.isNaN(valor)) { resultado.invalidos += 1; continue; }
       if (valor !== (porId.get(estudianteId)?.valores[casillaId] ?? null)) {
         resultado.calificaciones.push({ estudianteId, casillaId, valor });
@@ -67,6 +76,7 @@ export default function RegistroNotas() {
   const [cambios, setCambios] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
+  const [resultado, setResultado] = useState(null); // resultado del último guardado de notas
 
   // Materias del docente y trimestre activo
   useEffect(() => {
@@ -97,6 +107,14 @@ export default function RegistroNotas() {
   const cantidadCambios = pendientes.calificaciones.length + pendientes.autoevaluaciones.length;
   const hayBorrador = cantidadCambios > 0 || pendientes.invalidos > 0;
 
+  // Aviso del navegador si se intenta salir o recargar con notas sin guardar
+  useEffect(() => {
+    if (!hayBorrador) return undefined;
+    const avisar = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [hayBorrador]);
+
   const alCambiar = (clave, texto) => {
     setCambios((c) => ({ ...c, [clave]: texto }));
     setMensaje(null);
@@ -104,22 +122,24 @@ export default function RegistroNotas() {
 
   const guardar = async () => {
     if (pendientes.invalidos > 0) {
-      setMensaje({ tipo: 'error', texto: `Hay ${pendientes.invalidos} casilla(s) con valores no válidos (casillas: 0 a 100; autoevaluación: 0 a 5)` });
+      setResultado({ tipo: 'error', texto: `Hay ${pendientes.invalidos} casilla(s) con valores no válidos (en rojo): SER 0 a 10, SABER 0 a 45, HACER 0 a 40; autoevaluación 0 a 5. Corrígelas para guardar.` });
       return;
     }
+    if (cantidadCambios === 0) return;
     setGuardando(true);
-    setMensaje({ tipo: 'info', texto: 'Guardando notas…' });
+    setResultado(null);
     try {
       const nueva = await guardarCalificaciones({
         materiaProgramadaId: materiaId,
         calificaciones: pendientes.calificaciones,
         autoevaluaciones: pendientes.autoevaluaciones,
       });
+      // Solo se confirma con la respuesta del servidor (que devuelve la planilla ya guardada)
       setPlanilla(nueva);
       setCambios({});
-      setMensaje({ tipo: 'exito', texto: `Notas guardadas (${cantidadCambios} cambio${cantidadCambios === 1 ? '' : 's'})` });
+      setResultado({ tipo: 'exito', texto: `Notas guardadas correctamente (${cantidadCambios} cambio${cantidadCambios === 1 ? '' : 's'}) a las ${horaActual()}` });
     } catch (err) {
-      setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'No se pudieron guardar las notas' });
+      setResultado({ tipo: 'error', texto: `No se guardaron las notas: ${err.response?.data?.error || 'no hubo respuesta del servidor. Revisa tu conexión e inténtalo de nuevo.'}` });
     } finally {
       setGuardando(false);
     }
@@ -132,7 +152,7 @@ export default function RegistroNotas() {
       menuGroups={menuGroups}
       sidebarColor="bg-[#8B0000]"
       headerTitle="Registro de Calificaciones"
-      headerSubtitle="SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5 — casillas de 0 a 100"
+      headerSubtitle="Cada casilla sobre los puntos de su dimensión: SER 10 · SABER 45 · HACER 40 · AUTOEVALUACIÓN 5"
     >
       <div className="space-y-5">
         {/* Filtros */}
@@ -142,7 +162,7 @@ export default function RegistroNotas() {
             <select
               value={materiaId}
               disabled={hayBorrador}
-              onChange={(e) => { setMateriaId(e.target.value); setCambios({}); setMensaje(null); }}
+              onChange={(e) => { setMateriaId(e.target.value); setCambios({}); setMensaje(null); setResultado(null); }}
               className="ios-input w-full text-[12px]"
             >
               {materias.map((m) => (
@@ -155,7 +175,7 @@ export default function RegistroNotas() {
             <select
               value={trimestre ?? planilla?.trimestre ?? ''}
               disabled={hayBorrador || !planilla}
-              onChange={(e) => { setTrimestre(Number(e.target.value)); setCambios({}); setMensaje(null); }}
+              onChange={(e) => { setTrimestre(Number(e.target.value)); setCambios({}); setMensaje(null); setResultado(null); }}
               className="ios-input w-full text-[12px]"
             >
               {[1, 2, 3].map((t) => (
@@ -193,8 +213,8 @@ export default function RegistroNotas() {
         {hayBorrador && (
           <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl text-[12px]" style={{ backgroundColor: 'var(--ios-orange-light)', color: 'var(--ios-label)' }}>
             <Info size={15} style={{ color: 'var(--ios-orange)' }} />
-            Tienes cambios sin guardar. Guarda o descarta antes de cambiar de materia, trimestre o casillas.
-            <button type="button" className="ios-btn-ghost text-[12px] ml-auto" onClick={() => setCambios({})} disabled={guardando}>
+            Tienes notas sin guardar (marcadas en naranja). Guarda o descarta antes de cambiar de materia o trimestre.
+            <button type="button" className="ios-btn-ghost text-[12px] ml-auto" onClick={() => { setCambios({}); setResultado(null); }} disabled={guardando}>
               Descartar cambios
             </button>
           </div>
@@ -225,11 +245,11 @@ export default function RegistroNotas() {
 
         {!cargando && planilla.editable && (
           <ConfiguradorCasillas
-            key={planilla.casillas.map((c) => `${c.id}:${c.nombre}`).join('|')}
+            key={`${planilla.materiaProgramadaId}-${planilla.trimestre}`}
             planilla={planilla}
-            bloqueado={hayBorrador}
-            motivoBloqueo="Guarda o descarta las notas antes de cambiar las casillas"
-            onGuardado={(nueva, texto) => { setPlanilla(nueva); setMensaje({ tipo: 'exito', texto }); }}
+            bloqueado={guardando}
+            motivoBloqueo="Guardando notas…"
+            onGuardado={(nueva) => { setPlanilla(nueva); setCambios((c) => podarCambios(c, nueva)); }}
           />
         )}
 
@@ -237,11 +257,48 @@ export default function RegistroNotas() {
           <PlanillaNotas planilla={planilla} editable={planilla.editable} cambios={cambios} onCambio={alCambiar} />
         )}
 
+        {/* Barra de guardado: siempre visible al pie mientras haya cambios o un resultado */}
+        {!cargando && planilla.editable && (hayBorrador || guardando || resultado) && (
+          <div
+            role="status"
+            className="sticky bottom-3 z-20 ios-card p-3 flex flex-wrap items-center gap-3 text-[12px] font-medium"
+            style={{
+              boxShadow: 'var(--ios-shadow-md)',
+              border: `1px solid ${resultado?.tipo === 'error' ? 'var(--ios-red)' : hayBorrador ? 'var(--ios-orange)' : 'var(--ios-green)'}`,
+            }}
+          >
+            {guardando ? (
+              <span className="flex items-center gap-2" style={{ color: 'var(--ios-blue)' }}>
+                <Loader2 size={15} className="animate-spin" /> Guardando notas…
+              </span>
+            ) : (
+              <span className="flex items-center gap-2" style={{ color: resultado?.tipo === 'error' ? 'var(--ios-red)' : hayBorrador ? 'var(--ios-orange)' : 'var(--ios-green)' }}>
+                {resultado?.tipo === 'error' ? <AlertCircle size={15} /> : hayBorrador ? <Info size={15} /> : <CheckCircle size={15} />}
+                {resultado?.tipo === 'error'
+                  ? resultado.texto
+                  : hayBorrador
+                    ? `${cantidadCambios} cambio${cantidadCambios === 1 ? '' : 's'} sin guardar${pendientes.invalidos ? ` · ${pendientes.invalidos} valor(es) no válido(s)` : ''}`
+                    : resultado?.texto}
+              </span>
+            )}
+            {hayBorrador && (
+              <div className="flex gap-2 ml-auto">
+                <button type="button" className="ios-btn-ghost text-[12px]" disabled={guardando} onClick={() => { setCambios({}); setResultado(null); }}>
+                  Descartar
+                </button>
+                <button type="button" className="ios-btn-primary text-[12px] flex items-center gap-1.5" disabled={guardando || cantidadCambios === 0} onClick={guardar}>
+                  <Save size={14} /> Guardar notas{cantidadCambios ? ` (${cantidadCambios})` : ''}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {!cargando && (
           <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ios-tertiary)' }}>
-            Cada dimensión es el promedio de sus casillas, redondeado (0,5 sube). Una casilla que nadie tiene calificada no cuenta;
-            si otros estudiantes ya tienen nota en ella, quien no la tiene recibe 0. La columna «Asist.» se calcula sola con las
-            listas de asistencia (presente y justificado cuentan).
+            Cada componente es el promedio de sus casillas, redondeado (0,5 sube); un 0 sí cuenta. Si a un estudiante le falta alguna
+            casilla, ese componente queda «Pend.» y la nota final muestra «Calificación pendiente» hasta completar SER, SABER, HACER y la
+            autoevaluación. La columna «Asist.» se calcula sola con las listas de asistencia (presente y justificado cuentan); sin listas no cuenta.
           </p>
         )}
       </div>
