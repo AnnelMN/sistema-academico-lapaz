@@ -64,11 +64,13 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
     const periodo = await periodoDeFecha(fecha);
     const rango = periodo ? await rangoDeTrimestre(periodo.gestion, periodo.trimestre) : null;
 
-    // Obtener todos los estudiantes del curso con sus asistencias
+    // Estudiantes del curso con sus asistencias. El docente solo ve a los ACTIVOS;
+    // el Director ve también a los desactivados (historial), marcados con activo: false.
+    const esDirector = req.user.rol === 'DIRECTOR';
     const estudiantes = await prisma.estudiante.findMany({
-      where: { cursoId: programacion.cursoId },
+      where: { cursoId: programacion.cursoId, ...(esDirector ? {} : { usuario: { activo: true } }) },
       include: {
-        usuario: { select: { nombre: true } },
+        usuario: { select: { nombre: true, activo: true } },
         asistencias: {
           where: {
             materiaProgramadaId,
@@ -95,6 +97,7 @@ exports.getEstudiantesConAsistencia = async (req, res) => {
       return {
         id: est.id,
         nombre: est.usuario.nombre,
+        activo: est.usuario.activo,
         estadoHoy: asistenciaHoy ? asistenciaHoy.estado : null,
         totalRegistros: stats.total,
         presentes: stats.presentes,
@@ -366,7 +369,10 @@ exports.getHistorialAsistencia = async (req, res) => {
         return res.status(acceso.status).json({ error: acceso.error });
       }
 
-      const pertenencia = await verificarEstudiantesEnCurso([estudianteId], acceso.programacion.cursoId);
+      // El docente solo consulta a estudiantes activos; el Director, también el historial de los desactivados
+      const pertenencia = await verificarEstudiantesEnCurso([estudianteId], acceso.programacion.cursoId, {
+        soloActivos: req.user.rol !== 'DIRECTOR',
+      });
       if (pertenencia.error) {
         return res.status(pertenencia.status).json({ error: pertenencia.error });
       }
@@ -463,8 +469,8 @@ exports.registrarAsistenciaQR = async (req, res) => {
     // 7. Resumen de la sesión (hoy, esta materia)
     const [estudiante, inscritos, registrados] = await Promise.all([
       prisma.estudiante.findUnique({ where: { id: estudianteId }, select: { usuario: { select: { nombre: true } } } }),
-      prisma.estudiante.count({ where: { cursoId: acceso.programacion.cursoId } }),
-      prisma.asistencia.count({ where: { materiaProgramadaId, fecha: fechaDate } }),
+      prisma.estudiante.count({ where: { cursoId: acceso.programacion.cursoId, usuario: { activo: true } } }),
+      prisma.asistencia.count({ where: { materiaProgramadaId, fecha: fechaDate, estudiante: { usuario: { activo: true } } } }),
     ]);
 
     res.json({

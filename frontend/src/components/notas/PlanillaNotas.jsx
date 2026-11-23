@@ -161,7 +161,11 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
         </thead>
         <tbody>
           {planilla.estudiantes.map((est) => {
-            const fila = calcularFila({
+            // Estudiante desactivado (solo lo ve el Director): su nota guardada, sin recalcular
+            const inactivo = est.activo === false;
+            const fila = inactivo ? {
+              SER: est.ser, SABER: est.saber, HACER: est.hacer, total: est.total, aprobado: est.aprobado,
+            } : calcularFila({
               casillas: planilla.casillas,
               valorDe: (casillaId) => valorDe(est, casillaId),
               calificadas,
@@ -176,6 +180,11 @@ export default function PlanillaNotas({ planilla, editable, cambios = {}, onCamb
                   style={{ backgroundColor: 'var(--ios-surface)', color: 'var(--ios-label)', borderTop: '1px solid var(--ios-separator)' }}
                 >
                   {est.nombre}
+                  {inactivo && (
+                    <span className="ios-badge ios-badge-neutral ml-2" title="Estudiante desactivado: se muestra su historial, sin cambios">
+                      Inactivo
+                    </span>
+                  )}
                 </td>
                 {DIMENSIONES.map((dimension) => {
                   const lista = columnas[dimension];

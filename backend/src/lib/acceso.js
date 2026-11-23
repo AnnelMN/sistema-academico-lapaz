@@ -43,8 +43,11 @@ async function verificarAccesoProgramacion(user, materiaProgramadaId) {
   return { programacion, docente };
 }
 
-// Verifica que todos los estudiantes indicados pertenezcan al curso dado.
-async function verificarEstudiantesEnCurso(estudianteIds, cursoId) {
+// Verifica que todos los estudiantes indicados pertenezcan al curso dado y,
+// salvo que se indique soloActivos: false, que estén ACTIVOS. Un estudiante
+// desactivado no recibe notas ni asistencia nuevas; su historial se conserva
+// (solo el Director lo consulta).
+async function verificarEstudiantesEnCurso(estudianteIds, cursoId, { soloActivos = true } = {}) {
   const ids = [...new Set(estudianteIds)];
 
   if (ids.length === 0 || !ids.every(esIdValido)) {
@@ -52,11 +55,16 @@ async function verificarEstudiantesEnCurso(estudianteIds, cursoId) {
   }
 
   const enCurso = await prisma.estudiante.count({
-    where: { id: { in: ids }, cursoId },
+    where: { id: { in: ids }, cursoId, ...(soloActivos ? { usuario: { activo: true } } : {}) },
   });
 
   if (enCurso !== ids.length) {
-    return { status: 403, error: 'El estudiante no pertenece al curso de esta materia' };
+    return {
+      status: 403,
+      error: soloActivos
+        ? 'El estudiante no pertenece al curso de esta materia o está desactivado'
+        : 'El estudiante no pertenece al curso de esta materia',
+    };
   }
 
   return {};

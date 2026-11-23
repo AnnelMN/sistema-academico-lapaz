@@ -3,7 +3,7 @@ const { verificarAccesoProgramacion, verificarEstudiantesEnCurso, esIdValido } =
 const { periodoActivo } = require('../services/periodoService');
 const {
   PESOS, DIMENSIONES, MAX_AUTOEVALUACION, MAX_CASILLAS,
-  cargarContexto, calcularDesdeContexto, recalcularNotas,
+  cargarContexto, calcularDesdeContexto, recalcularNotas, valorAsistencia,
 } = require('../services/calificacionService');
 const { evaluarRiesgoEnSegundoPlano } = require('../services/riesgoService');
 const { accionDe, registrarCambios } = require('../services/auditoriaService');
@@ -58,8 +58,31 @@ async function prepararAcceso(user, materiaProgramadaId, { paraEscribir }) {
   return { programacion, activo, trimestreActivo };
 }
 
-// Arma la respuesta de la planilla (casillas + estudiantes con sus cálculos)
-async function construirPlanilla(materiaProgramadaId, trimestre, { editable, motivoNoEditable }) {
+// Fila de un estudiante DESACTIVADO (solo la ve el Director): su nota guardada,
+// congelada como historial, sin recalcular.
+const filaHistorica = (ctx, e) => {
+  const nota = ctx.notasPorEstudiante.get(e.id);
+  const asistencia = ctx.asistenciaPorEstudiante.get(e.id) || { presentes: 0, justificados: 0, ausentes: 0, total: 0 };
+  return {
+    id: e.id,
+    nombre: e.usuario.nombre,
+    activo: false,
+    valores: Object.fromEntries(ctx.valoresPorEstudiante.get(e.id) || []),
+    asistencia: { ...asistencia, valor: valorAsistencia(asistencia) },
+    autoevaluacion: nota?.autoevaluacion ?? null,
+    ser: nota?.ser ?? 0,
+    saber: nota?.saber ?? 0,
+    hacer: nota?.hacer ?? 0,
+    total: nota?.total ?? 0,
+    aprobado: nota?.aprobado ?? false,
+    tieneNota: Boolean(nota),
+  };
+};
+
+// Arma la respuesta de la planilla (casillas + estudiantes con sus cálculos).
+// El docente solo ve a los estudiantes ACTIVOS; el Director (incluirInactivos)
+// ve también a los desactivados, marcados con activo: false.
+async function construirPlanilla(materiaProgramadaId, trimestre, { editable, motivoNoEditable, incluirInactivos = false }) {
   const ctx = await cargarContexto(materiaProgramadaId, trimestre);
   return {
     materiaProgramadaId,
@@ -79,12 +102,14 @@ async function construirPlanilla(materiaProgramadaId, trimestre, { editable, mot
       esAsistencia: c.esAsistencia,
       calificada: c.esAsistencia || ctx.casillasCalificadas.has(c.id),
     })),
-    estudiantes: ctx.estudiantes.map((e) => {
+    estudiantes: ctx.estudiantes.filter((e) => incluirInactivos || e.usuario.activo).map((e) => {
+      if (!e.usuario.activo) return filaHistorica(ctx, e);
       const calculo = calcularDesdeContexto(ctx, e.id);
       const asistencia = ctx.asistenciaPorEstudiante.get(e.id) || { presentes: 0, justificados: 0, ausentes: 0, total: 0 };
       return {
         id: e.id,
         nombre: e.usuario.nombre,
+        activo: true,
         valores: Object.fromEntries(ctx.valoresPorEstudiante.get(e.id) || []),
         asistencia: { ...asistencia, valor: calculo.asistencia },
         autoevaluacion: calculo.autoevaluacion,
@@ -157,6 +182,7 @@ exports.getPlanilla = async (req, res) => {
     const planilla = await construirPlanilla(materiaProgramadaId, trimestre, {
       editable: !motivoNoEditable,
       motivoNoEditable,
+      incluirInactivos: req.user.rol === 'DIRECTOR',
     });
     res.json(planilla);
   } catch (error) {
@@ -218,6 +244,24 @@ exports.guardarCasillas = async (req, res) => {
 
       for (const c of actuales) if (!vistos.has(c.id)) eliminar.push(c);
       plan[dimension] = { items, conservar: actuales.filter((c) => vistos.has(c.id)) };
+    }
+
+    // Una casilla con notas de estudiantes DESACTIVADOS no se puede eliminar:
+    // borrarla borraría su historial (las calificaciones se eliminan en cascada).
+    if (eliminar.length) {
+      const conHistorial = await prisma.calificacionCasilla.findMany({
+        where: { casillaId: { in: eliminar.map((c) => c.id) }, estudiante: { usuario: { activo: false } } },
+        select: { casillaId: true },
+        distinct: ['casillaId'],
+      });
+      if (conHistorial.length) {
+        const bloqueadas = new Set(conHistorial.map((c) => c.casillaId));
+        throw new ErrorValidacion(409, 'No se puede eliminar una casilla que tiene notas de estudiantes desactivados: forman parte de su historial académico.', {
+          casillasConHistorial: eliminar.filter((c) => bloqueadas.has(c.id)).map((c) => ({
+            id: c.id, dimension: c.dimension, nombre: c.nombre,
+          })),
+        });
+      }
     }
 
     const conNotas = eliminar.filter((c) => c._count.calificaciones > 0);

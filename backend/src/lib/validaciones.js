@@ -2,6 +2,12 @@
 // la que cuenta es esta, en el servidor).
 
 const ROLES = Object.freeze(['DIRECTOR', 'PROFESOR', 'ADMINISTRATIVO', 'ESTUDIANTE']);
+// Roles que el Director puede crear o asignar desde la gestión de usuarios
+// (la cuenta de Director se crea solo con el seed o scripts/crearAdmin.js)
+const ROLES_GESTIONABLES = Object.freeze(['PROFESOR', 'ADMINISTRATIVO', 'ESTUDIANTE']);
+
+// Costo de bcrypt para todas las contraseñas (las de costo menor se actualizan al iniciar sesión)
+const COSTO_BCRYPT = 12;
 
 const MAX_NOMBRE = 100;
 const MAX_EMAIL = 254;
@@ -35,13 +41,17 @@ const normalizarNombre = (valor) => {
 };
 
 const esRolValido = (valor) => ROLES.includes(valor);
+const esRolGestionable = (valor) => ROLES_GESTIONABLES.includes(valor);
 
 module.exports = {
   ROLES,
+  ROLES_GESTIONABLES,
+  COSTO_BCRYPT,
   MAX_NOMBRE,
   MENSAJE_CONTRASENA,
   normalizarEmail,
   esContrasenaRobusta,
   normalizarNombre,
   esRolValido,
+  esRolGestionable,
 };

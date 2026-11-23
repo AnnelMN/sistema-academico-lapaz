@@ -198,7 +198,12 @@ export default function DirectorAsistencia() {
                 const cfg = ESTADO_CONFIG[est.estadoHoy] || ESTADO_CONFIG[null];
                 return (
                   <tr key={est.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-4 text-[12px] font-medium text-slate-700">{est.nombre}</td>
+                    <td className="px-4 py-4 text-[12px] font-medium text-slate-700">
+                      {est.nombre}
+                      {est.activo === false && (
+                        <span className="ios-badge ios-badge-neutral ml-2" title="Estudiante desactivado: se muestra su historial">Inactivo</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${cfg.class}`}>
                         {cfg.label}

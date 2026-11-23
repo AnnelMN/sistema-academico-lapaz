@@ -2,15 +2,22 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 const { esIdValido } = require('../lib/acceso');
 const {
-  MENSAJE_CONTRASENA, normalizarEmail, esContrasenaRobusta, normalizarNombre, esRolValido,
+  MENSAJE_CONTRASENA, COSTO_BCRYPT, normalizarEmail, esContrasenaRobusta, normalizarNombre, esRolGestionable,
 } = require('../lib/validaciones');
 
 // Gestión de usuarios (solo DIRECTOR; ver usuarios.routes.js).
-// Todas las entradas se validan aquí: email con formato (y en minúsculas),
-// nombre, rol permitido y contraseña robusta. El Director no puede cambiar su
-// propio rol ni desactivar su propia cuenta (evita quedarse sin acceso).
+// - El Director crea Docentes (PROFESOR), Administrativos y Estudiantes; no puede
+//   crear otro Director ni asignar ese rol.
+// - Las contraseñas se guardan SOLO como hash bcrypt y nunca se devuelven: el
+//   Director puede asignar una nueva, pero no ver la actual de nadie.
+// - Estudiante: curso y correo del tutor obligatorios. Docente: especialidad.
+// - No se cambia el rol de un Estudiante o Docente (sus notas, asistencia o
+//   materias dependen de ese perfil): se crea un usuario nuevo.
+// - Desactivar no borra nada: el usuario no puede ingresar, deja de aparecer en
+//   las listas del docente y su historial académico se conserva.
+// El Director no puede cambiar su propio rol ni desactivar su propia cuenta.
 
-const COSTO_BCRYPT = 12;
+const ETIQUETA_ROL = { PROFESOR: 'Docente', ADMINISTRATIVO: 'Administrativo', ESTUDIANTE: 'Estudiante', DIRECTOR: 'Director' };
 
 const SELECT_USUARIO = {
   id: true,
@@ -20,14 +27,51 @@ const SELECT_USUARIO = {
   activo: true,
   estudiante: {
     select: {
-      curso: { select: { nivel: true, paralelo: true } },
+      emailTutor: true,
+      curso: { select: { id: true, nivel: true, paralelo: true } },
     },
   },
+  docente: { select: { especialidad: true } },
 };
 
 const esEmailDuplicado = (error) => error?.code === 'P2002';
 
-// Get all users
+class ErrorUsuario extends Error {
+  constructor(status, mensaje) {
+    super(mensaje);
+    this.status = status;
+  }
+}
+
+// Especialidad del docente: texto de 1 a 100 caracteres
+const normalizarEspecialidad = (valor) => normalizarNombre(valor);
+
+// Curso existente a partir del id recibido
+async function cursoValido(cursoId) {
+  if (!esIdValido(cursoId)) throw new ErrorUsuario(400, 'Seleccione un curso válido para el estudiante');
+  const curso = await prisma.curso.findUnique({ where: { id: cursoId }, select: { id: true } });
+  if (!curso) throw new ErrorUsuario(404, 'Curso no encontrado');
+  return curso;
+}
+
+// Correo del tutor (obligatorio para estudiantes: recibe los avisos de riesgo y faltas)
+function emailTutorValido(valor, emailEstudiante) {
+  const emailTutor = normalizarEmail(valor);
+  if (!emailTutor) throw new ErrorUsuario(400, 'El correo del tutor no es válido');
+  if (emailTutor === emailEstudiante) {
+    throw new ErrorUsuario(400, 'El correo del tutor debe ser distinto del correo del estudiante');
+  }
+  return emailTutor;
+}
+
+const responderError = (res, error, contexto, mensaje) => {
+  if (error instanceof ErrorUsuario) return res.status(error.status).json({ error: error.message });
+  if (esEmailDuplicado(error)) return res.status(409).json({ error: 'Ya existe un usuario con ese correo' });
+  console.error(`Error en ${contexto}:`, error);
+  return res.status(500).json({ error: mensaje });
+};
+
+// GET /api/usuarios
 const getUsuarios = async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany({
@@ -36,28 +80,25 @@ const getUsuarios = async (req, res) => {
     });
     res.json(usuarios);
   } catch (error) {
-    console.error('Error fetching usuarios:', error);
-    res.status(500).json({ error: 'Server error fetching usuarios' });
+    responderError(res, error, 'getUsuarios', 'Error al obtener los usuarios');
   }
 };
 
-// Create a new user
+// POST /api/usuarios
 const createUsuario = async (req, res) => {
   try {
-    const { cursoId } = req.body || {};
-    const nombre = normalizarNombre(req.body?.nombre);
-    const email = normalizarEmail(req.body?.email);
-    const { password, rol } = req.body || {};
+    const body = req.body || {};
+    const nombre = normalizarNombre(body.nombre);
+    const email = normalizarEmail(body.email);
+    const { password, rol } = body;
 
-    if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio (máximo 100 caracteres)' });
-    if (!email) return res.status(400).json({ error: 'El correo electrónico no es válido' });
-    if (!esRolValido(rol)) return res.status(400).json({ error: 'Rol inválido' });
-    if (!esContrasenaRobusta(password)) return res.status(400).json({ error: MENSAJE_CONTRASENA });
+    if (!nombre) throw new ErrorUsuario(400, 'El nombre es obligatorio (máximo 100 caracteres)');
+    if (!email) throw new ErrorUsuario(400, 'El correo electrónico no es válido');
+    if (!esRolGestionable(rol)) throw new ErrorUsuario(400, 'Rol inválido: puede crear Docentes, Administrativos o Estudiantes');
+    if (!esContrasenaRobusta(password)) throw new ErrorUsuario(400, MENSAJE_CONTRASENA);
 
-    const existingUser = await prisma.usuario.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(409).json({ error: 'Ya existe un usuario con ese correo' });
-    }
+    const existente = await prisma.usuario.findUnique({ where: { email }, select: { id: true } });
+    if (existente) throw new ErrorUsuario(409, 'Ya existe un usuario con ese correo');
 
     const data = {
       nombre,
@@ -67,149 +108,150 @@ const createUsuario = async (req, res) => {
     };
 
     if (rol === 'ESTUDIANTE') {
-      let curso;
-      if (cursoId !== undefined && cursoId !== null && cursoId !== '') {
-        if (!esIdValido(cursoId)) return res.status(400).json({ error: 'Curso inválido' });
-        curso = await prisma.curso.findUnique({ where: { id: cursoId } });
-        if (!curso) return res.status(404).json({ error: 'Curso no encontrado' });
-      } else {
-        curso = await prisma.curso.findFirst({ orderBy: [{ nivel: 'asc' }, { paralelo: 'asc' }] });
-        if (!curso) return res.status(400).json({ error: 'Primero debe existir al menos un curso' });
-      }
+      const curso = await cursoValido(body.cursoId);
       data.estudiante = {
         create: {
           cursoId: curso.id,
           gestion: new Date().getFullYear(),
-          emailTutor: `tutor_${email}`,
+          emailTutor: emailTutorValido(body.emailTutor, email),
         },
       };
     } else if (rol === 'PROFESOR') {
-      data.docente = { create: { especialidad: 'General' } };
+      const especialidad = normalizarEspecialidad(body.especialidad);
+      if (!especialidad) throw new ErrorUsuario(400, 'La especialidad del docente es obligatoria (máximo 100 caracteres)');
+      data.docente = { create: { especialidad } };
     }
 
-    const newUser = await prisma.usuario.create({ data, select: SELECT_USUARIO });
-    res.status(201).json(newUser);
+    const nuevo = await prisma.usuario.create({ data, select: SELECT_USUARIO });
+    res.status(201).json(nuevo);
   } catch (error) {
-    if (esEmailDuplicado(error)) return res.status(409).json({ error: 'Ya existe un usuario con ese correo' });
-    console.error('Error creating usuario:', error);
-    res.status(500).json({ error: 'Server error creating usuario' });
+    responderError(res, error, 'createUsuario', 'Error al crear el usuario');
   }
 };
 
-// Update a user
+// PUT /api/usuarios/:id
 const updateUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cursoId, password, rol } = req.body || {};
+    const body = req.body || {};
+    if (!esIdValido(id)) throw new ErrorUsuario(400, 'Usuario inválido');
 
-    const actual = await prisma.usuario.findUnique({ where: { id }, select: { id: true, email: true, rol: true } });
-    if (!actual) return res.status(404).json({ error: 'Usuario no encontrado' });
+    const actual = await prisma.usuario.findUnique({
+      where: { id },
+      select: {
+        id: true, email: true, rol: true,
+        estudiante: { select: { id: true } },
+        docente: { select: { id: true } },
+      },
+    });
+    if (!actual) throw new ErrorUsuario(404, 'Usuario no encontrado');
 
     const updateData = {};
 
-    if (req.body?.nombre !== undefined && req.body.nombre !== '') {
-      const nombre = normalizarNombre(req.body.nombre);
-      if (!nombre) return res.status(400).json({ error: 'El nombre no es válido (máximo 100 caracteres)' });
+    if (body.nombre !== undefined && body.nombre !== '') {
+      const nombre = normalizarNombre(body.nombre);
+      if (!nombre) throw new ErrorUsuario(400, 'El nombre no es válido (máximo 100 caracteres)');
       updateData.nombre = nombre;
     }
 
-    if (req.body?.email !== undefined && req.body.email !== '') {
-      const email = normalizarEmail(req.body.email);
-      if (!email) return res.status(400).json({ error: 'El correo electrónico no es válido' });
+    if (body.email !== undefined && body.email !== '') {
+      const email = normalizarEmail(body.email);
+      if (!email) throw new ErrorUsuario(400, 'El correo electrónico no es válido');
       if (email !== actual.email) {
         const ocupado = await prisma.usuario.findUnique({ where: { email }, select: { id: true } });
-        if (ocupado) return res.status(409).json({ error: 'Ya existe un usuario con ese correo' });
+        if (ocupado) throw new ErrorUsuario(409, 'Ya existe un usuario con ese correo');
       }
       updateData.email = email;
     }
 
-    if (rol !== undefined && rol !== '') {
-      if (!esRolValido(rol)) return res.status(400).json({ error: 'Rol inválido' });
-      if (id === req.user.id && rol !== actual.rol) {
-        return res.status(403).json({ error: 'No puedes cambiar tu propio rol' });
+    // Rol: solo se permite pasar de Administrativo a Docente (se crea su perfil).
+    // El rol de un Estudiante o Docente no cambia, ni se asigna el de Director.
+    let crearDocente = false;
+    if (body.rol !== undefined && body.rol !== '' && body.rol !== actual.rol) {
+      if (id === req.user.id) throw new ErrorUsuario(403, 'No puedes cambiar tu propio rol');
+      if (!esRolGestionable(body.rol)) throw new ErrorUsuario(400, 'Rol inválido: puede asignar Docente, Administrativo o Estudiante');
+      if (actual.rol === 'DIRECTOR') throw new ErrorUsuario(403, 'No se puede cambiar el rol del Director');
+      if (actual.estudiante || actual.docente) {
+        throw new ErrorUsuario(409, `No se puede cambiar el rol de un ${ETIQUETA_ROL[actual.rol]}: su historial depende de ese perfil. Cree un usuario nuevo con el rol correcto.`);
       }
-      updateData.rol = rol;
+      if (body.rol === 'ESTUDIANTE') {
+        throw new ErrorUsuario(409, 'Para registrar un estudiante cree un usuario nuevo con su curso y el correo del tutor.');
+      }
+      crearDocente = body.rol === 'PROFESOR';
+      updateData.rol = body.rol;
     }
 
-    if (password !== undefined && password !== '') {
-      if (!esContrasenaRobusta(password)) return res.status(400).json({ error: MENSAJE_CONTRASENA });
-      updateData.password = await bcrypt.hash(password, COSTO_BCRYPT);
+    if (body.password !== undefined && body.password !== '') {
+      if (!esContrasenaRobusta(body.password)) throw new ErrorUsuario(400, MENSAJE_CONTRASENA);
+      updateData.password = await bcrypt.hash(body.password, COSTO_BCRYPT);
     }
 
     // Cambio de contraseña o de rol → se cierran todas las sesiones de ese usuario
-    if (updateData.password || (updateData.rol && updateData.rol !== actual.rol)) {
+    if (updateData.password || updateData.rol) {
       updateData.tokenVersion = { increment: 1 };
     }
 
-    let estudianteNested;
-    const rolFinal = updateData.rol || actual.rol;
-    if (rolFinal === 'ESTUDIANTE' && cursoId) {
-      if (!esIdValido(cursoId)) return res.status(400).json({ error: 'Curso inválido' });
-      const curso = await prisma.curso.findUnique({ where: { id: cursoId } });
-      if (!curso) {
-        return res.status(404).json({ error: 'Curso no encontrado' });
+    // Datos del perfil de estudiante: curso y correo del tutor
+    if (actual.estudiante) {
+      const cambios = {};
+      if (body.cursoId !== undefined && body.cursoId !== '') cambios.cursoId = (await cursoValido(body.cursoId)).id;
+      if (body.emailTutor !== undefined && body.emailTutor !== '') {
+        cambios.emailTutor = emailTutorValido(body.emailTutor, updateData.email || actual.email);
       }
-      estudianteNested = {
-        upsert: {
-          where: { usuarioId: id },
-          create: {
-            cursoId,
-            gestion: new Date().getFullYear(),
-            emailTutor: `tutor_${updateData.email || actual.email}`,
-          },
-          update: { cursoId },
-        },
-      };
+      if (Object.keys(cambios).length) updateData.estudiante = { update: cambios };
     }
 
-    const updatedUser = await prisma.usuario.update({
+    // Perfil de docente: especialidad (obligatoria al pasar de Administrativo a Docente)
+    if (actual.docente || crearDocente) {
+      let especialidad;
+      if (body.especialidad !== undefined && body.especialidad !== '') {
+        especialidad = normalizarEspecialidad(body.especialidad);
+        if (!especialidad) throw new ErrorUsuario(400, 'La especialidad no es válida (máximo 100 caracteres)');
+      }
+      if (crearDocente) {
+        if (!especialidad) throw new ErrorUsuario(400, 'La especialidad del docente es obligatoria');
+        updateData.docente = { create: { especialidad } };
+      } else if (especialidad) {
+        updateData.docente = { update: { especialidad } };
+      }
+    }
+
+    const actualizado = await prisma.usuario.update({
       where: { id },
-      data: {
-        ...updateData,
-        ...(estudianteNested ? { estudiante: estudianteNested } : {}),
-      },
+      data: updateData,
       select: SELECT_USUARIO,
     });
 
-    res.json(updatedUser);
+    res.json(actualizado);
   } catch (error) {
-    if (esEmailDuplicado(error)) return res.status(409).json({ error: 'Ya existe un usuario con ese correo' });
-    console.error('Error updating usuario:', error);
-    res.status(500).json({ error: 'Server error updating usuario' });
+    responderError(res, error, 'updateUsuario', 'Error al actualizar el usuario');
   }
 };
 
-// Toggle user status (activo/inactivo)
+// PATCH /api/usuarios/:id/estado — activar o desactivar (no borra nada)
 const toggleEstado = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!esIdValido(id)) throw new ErrorUsuario(400, 'Usuario inválido');
 
     if (id === req.user.id) {
-      return res.status(403).json({ error: 'No puedes desactivar tu propia cuenta' });
+      throw new ErrorUsuario(403, 'No puedes desactivar tu propia cuenta');
     }
 
-    const user = await prisma.usuario.findUnique({ where: { id } });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const usuario = await prisma.usuario.findUnique({ where: { id }, select: { activo: true, rol: true } });
+    if (!usuario) throw new ErrorUsuario(404, 'Usuario no encontrado');
+    if (usuario.rol === 'DIRECTOR') throw new ErrorUsuario(403, 'No se puede desactivar la cuenta del Director');
 
-    const updatedUser = await prisma.usuario.update({
+    const actualizado = await prisma.usuario.update({
       where: { id },
       // Activar o desactivar → las sesiones anteriores dejan de valer
-      data: { activo: !user.activo, tokenVersion: { increment: 1 } },
-      select: {
-        id: true,
-        nombre: true,
-        email: true,
-        rol: true,
-        activo: true,
-      },
+      data: { activo: !usuario.activo, tokenVersion: { increment: 1 } },
+      select: SELECT_USUARIO,
     });
 
-    res.json(updatedUser);
+    res.json(actualizado);
   } catch (error) {
-    console.error('Error toggling usuario status:', error);
-    res.status(500).json({ error: 'Server error updating status' });
+    responderError(res, error, 'toggleEstado', 'Error al cambiar el estado del usuario');
   }
 };
 

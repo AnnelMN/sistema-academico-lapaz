@@ -5,7 +5,7 @@ const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const prisma = require('../lib/prisma');
 const { cifrar, descifrar } = require('../lib/cifrado');
-const { esContrasenaRobusta, MENSAJE_CONTRASENA } = require('../lib/validaciones');
+const { esContrasenaRobusta, MENSAJE_CONTRASENA, COSTO_BCRYPT } = require('../lib/validaciones');
 
 // Huella del hash de la contraseña para el token de recuperación: un HMAC que
 // no revela nada del hash (antes se enviaban sus primeros 16 caracteres) y que
@@ -95,6 +95,20 @@ const login = async (req, res) => {
     }
 
     clearFailures(loginAttempts, claveIntentos(req, emailKey));
+
+    // Hash antiguo con costo menor al actual: se vuelve a calcular con la
+    // contraseña recién verificada (nunca se guarda en texto plano). Si falla,
+    // el inicio de sesión sigue igual.
+    try {
+      if (bcrypt.getRounds(user.password) < COSTO_BCRYPT) {
+        await prisma.usuario.update({
+          where: { id: user.id },
+          data: { password: await bcrypt.hash(password, COSTO_BCRYPT) },
+        });
+      }
+    } catch (err) {
+      console.error('No se pudo actualizar el costo del hash:', err.message);
+    }
 
     // PASO 1 de 2FA: si tiene 2FA activo, emitir pre-token corto y pedir código TOTP.
     if (user.twoFactorEnabled) {
@@ -386,7 +400,7 @@ const resetPassword = async (req, res) => {
     await prisma.usuario.update({
       where: { id: user.id },
       // Nueva contraseña → se cierran todas las sesiones abiertas
-      data: { password: await bcrypt.hash(newPassword, 12), tokenVersion: { increment: 1 } },
+      data: { password: await bcrypt.hash(newPassword, COSTO_BCRYPT), tokenVersion: { increment: 1 } },
     });
 
     clearFailures(passwordResetAttempts, resetKey);

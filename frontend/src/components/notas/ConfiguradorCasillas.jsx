@@ -52,7 +52,10 @@ export default function ConfiguradorCasillas({ planilla, bloqueado, motivoBloque
       setConfirmar(null);
       onGuardado(nueva, 'Casillas guardadas');
     } catch (err) {
-      if (err.response?.status === 409) {
+      if (err.response?.status === 409 && err.response.data?.casillasConHistorial) {
+        // Casillas con notas de estudiantes desactivados: no se pueden eliminar
+        setError(err.response.data.error);
+      } else if (err.response?.status === 409) {
         setConfirmar(err.response.data.casillasConNotas || []);
       } else {
         setError(err.response?.data?.error || 'No se pudieron guardar las casillas');

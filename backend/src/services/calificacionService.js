@@ -106,9 +106,11 @@ async function cargarContexto(materiaProgramadaId, trimestre, cliente = prisma) 
       orderBy: [{ dimension: 'asc' }, { orden: 'asc' }],
       include: { calificaciones: { select: { estudianteId: true, valor: true } } },
     }),
+    // Todos los del curso (también los desactivados, para que el Director vea su
+    // historial); los cálculos y la planilla del docente usan solo los activos.
     cliente.estudiante.findMany({
       where: { cursoId: programacion.cursoId },
-      select: { id: true, usuario: { select: { nombre: true } } },
+      select: { id: true, usuario: { select: { nombre: true, activo: true } } },
       orderBy: { usuario: { nombre: 'asc' } },
     }),
     cliente.nota.findMany({ where: { materiaProgramadaId, trimestre } }),
@@ -133,8 +135,13 @@ async function cargarContexto(materiaProgramadaId, trimestre, cliente = prisma) 
     asistenciaPorEstudiante.set(a.estudianteId, r);
   }
 
+  // Una casilla "cuenta" si algún estudiante ACTIVO tiene nota en ella: las notas
+  // de un estudiante desactivado son historial y no obligan a nadie a tener 0.
+  const idsActivos = new Set(estudiantes.filter((e) => e.usuario.activo).map((e) => e.id));
   const casillasCalificadas = new Set(
-    casillas.filter((c) => !c.esAsistencia && c.calificaciones.length > 0).map((c) => c.id)
+    casillas
+      .filter((c) => !c.esAsistencia && c.calificaciones.some((cal) => idsActivos.has(cal.estudianteId)))
+      .map((c) => c.id)
   );
 
   const valoresPorEstudiante = new Map();
@@ -151,6 +158,7 @@ async function cargarContexto(materiaProgramadaId, trimestre, cliente = prisma) 
     casillas,
     casillasCalificadas,
     estudiantes,
+    idsActivos,
     notasPorEstudiante: new Map(notas.map((n) => [n.estudianteId, n])),
     valoresPorEstudiante,
     asistenciaPorEstudiante,
@@ -187,7 +195,9 @@ async function recalcularNotas(materiaProgramadaId, trimestre, {
   const ctx = await cargarContexto(materiaProgramadaId, trimestre, cliente);
   if (!ctx) return new Map();
 
-  const ids = estudianteIds ? new Set(estudianteIds) : new Set(ctx.estudiantes.map((e) => e.id));
+  // Solo estudiantes ACTIVOS del curso: la nota guardada de un estudiante
+  // desactivado queda congelada como historial (no se recalcula ni se borra).
+  const ids = new Set((estudianteIds ?? [...ctx.idsActivos]).filter((id) => ctx.idsActivos.has(id)));
   const resultados = new Map();
 
   for (const estudianteId of ids) {
